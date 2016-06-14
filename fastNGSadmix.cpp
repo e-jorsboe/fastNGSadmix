@@ -3,7 +3,7 @@
   g++ fastNGSadmix.cpp -lz -lpthread  -O3 -o fastNGSadmix
 
 */
-
+ 
 //optimazation parameteres for maf estimation
 #define MAF_START 0.3
 #define MAF_ITER 20
@@ -31,6 +31,10 @@
 
 #include <pthread.h>
 #include <errno.h>
+
+
+/////////////////////////////////////////////////////////////////////
+// globale ting: functioner + variable(ikke god stil)
 
 typedef int pthread_barrierattr_t;
 typedef struct
@@ -224,6 +228,70 @@ double emFrequency(double *loglike,int numInds, int iter,double start,char *keep
   return(p);
 }
 
+
+
+
+
+void getExpGandFstarEmil(double* Q, double** F, int nSites_start,int nSites_stop, int nInd, int K,double **genos,int startI,int stopI,char **keeps,double **prodA,double **prodB,double **F_1,int thread){
+  
+  // do this for each site
+    for(int j=nSites_start;j<nSites_stop;j++){
+      double sumAG[K];
+      double sumBG[K];
+      for(int k=0;k<K;k++){ //time killar
+	sumAG[k]=0;
+	sumBG[k]=0;
+      }
+      // This is for having more individuals
+      for(int i=0;i<nInd;i++){
+#ifdef DO_MIS
+	//	if(keeps[j][i]==0){
+	//	  expG1[j][i]= std::numeric_limits<double>::quiet_NaN();
+	//	  expG2[j][i]= std::numeric_limits<double>::quiet_NaN();
+	//	}
+	//	else{
+#endif
+	  double fpart=0;
+	  for(int k=0;k<K;k++){ //time killar
+	    // admixture adjusted freq, for each pop
+	    fpart += F[j][k] * Q[k];
+	  }
+	  fpart=1-fpart;
+	  // pre GL (sites x 3) * (adjusted freq)
+	  double pp0=fpart*fpart*        genos[j][0];
+	  double pp1=2*(1-fpart)*fpart*  genos[j][1];
+	  double pp2=(1-fpart)*(1-fpart)*genos[j][2];
+	  // in order to do the sum
+	  double sum=pp0+pp1+pp2;
+	  // for calculating H
+	  double expGG =(pp1+2*pp2)/sum;//range 0-2, this is the expected genotype
+	
+	  // K is number of ancestral populations
+	  for(int k=0;k<K;k++){
+
+	    prodA[thread][i][k] += expGG/(1-fpart) * F[j][k]; //proteckMe
+	    prodB[thread][i][k] += (2-expGG)/fpart *(1- F[j][k]); //proteckMe
+	    // similar to (H/(q*f))*q, for jth marker
+	    sumAG[k] += expGG/(1-fpart) * Q[i][k]; //time killar
+	    sumBG[k] += (2-expGG)/fpart * Q[i][k];//time killar
+  
+	  }
+#ifdef DO_MIS
+	}
+#endif
+      }
+      for(int k=0;k<K;k++){
+	// put on the last f
+	sumAG[k] *= F[j][k];
+	sumBG[k] *= (1-F[j][k]);
+	// calculates new freqs
+	F_1[j][k]=sumAG[k]/(sumAG[k]+sumBG[k]);
+      }
+
+    
+    }
+  
+}
 
 
 void getExpGandFstar(double** Q, double** F, int nSites_start,int nSites_stop, int nInd, int K,double **genos,int startI,int stopI,char **keeps,double ***prodA,double ***prodB,double **F_1,int thread){
@@ -523,7 +591,7 @@ bgl readBeagle(const char* fname) {
 
 void readDouble(double **d,int x,int y,const char*fname,int neg){
   fprintf(stderr,"opening : %s with x=%d y=%d\n",fname,x,y);
-  const char*delims=" \n";
+  const char*delims=" \n\t";
   FILE *fp = NULL;
   if((fp=fopen(fname,"r"))==NULL){
     fprintf(stderr,"cont open:%s\n",fname);
@@ -579,6 +647,28 @@ void readDoubleGZ(double **d,int x,int y,const char*fname,int neg){
     }
   }
   gzclose(fp);
+}
+
+void readDouble1d(double *d,int x,const char*fname){
+  fprintf(stderr,"opening : %s with x=%d\n",fname,x);
+  const char*delims=" \n\t";
+  FILE *fp = NULL;
+  if((fp=fopen(fname,"r"))==NULL){
+    fprintf(stderr,"cont open:%s\n",fname);
+    exit(0);
+  }
+  int lens=1000000 ;
+  char buf[lens];
+  if(NULL==fgets(buf,lens,fp)){
+    fprintf(stderr,"Increase buffer\n");
+    exit(0);
+  }
+  d[0] = atof(strtok(buf,delims));
+  for(int j=1;j<x;j++){
+    //      fprintf(stderr,"i=%d j=%d\n",i,j);   
+    d[j] = atof(strtok(NULL,delims));
+  }
+  fclose(fp);
 }
 
 double **allocDouble(size_t x,size_t y){
@@ -774,6 +864,70 @@ double like_tsk(double **Q,double **F,int nThreads){
   return res;
 }
 
+// genos - genotype likelihoods
+void emEmil(double* Q, double** F, int nSites, int nInd, int K,double **genos,double **F_1,double *Q_1) {
+  //  fprintf(stderr,"no threads no sqem\n");
+  #ifdef CHECK
+  checkFQ(F,Q,nSites,nInd,K,"em lorte start ");
+  #endif
+  //tmp vars
+  // my a and b vectors
+  static double *bNorm=NULL;
+  static double *aNorm=NULL;
+  // only matrices in my case
+  static double **prodA = NULL;
+  static double **prodB = NULL;
+  // because calls this function inside loop, 
+  // first time parameters have to be initiated
+  if(bNorm==NULL){
+    double *aNorm = new double[nSites];
+    double *bNorm = new double[nSites];
+    prodA=allocDouble(nSites,K);
+    prodB=allocDouble(nSites,K);
+  }
+  for(int i=0;i<nSites;i++)
+    for(int k=0;k<K;k++){
+      prodA[i][k]=0;
+      prodB[i][k]=0;
+    }
+  // calls at the end with NULLs memory has to be deallocated 
+  // will have to change these as well
+  if(Q==NULL){//cleanup
+    //    fprintf(stderr,"cleanup\n");
+    // dalloc(bNorm,nSites);
+    delete bNorm;
+    // dalloc(aNorm,nSites);
+    delete aNorm;
+    
+    dalloc(prodA,nInd);
+    dalloc(prodB,nInd);
+    
+    return;
+  }
+
+  //  getExpGandExpG2(Q,F,0,nSites,nInd,K,genos,expG2,expG1,0,nInd);
+  // we might need one that first updates the freqs with those from the input
+  // updateFreqs!!
+  // this for calculating A and B and freqs (where I need to update with input)
+  getExpGandFstar(Q,F,0,nSites,nInd,K,genos,0,nInd,keeps,prodA,prodB,F_1,0);
+  //  updateF(Q, F,0,nSites,nInd,K,F_1,expG2,expG1,0,nInd);
+  //  updateF(Q, F,0,nSites,nInd,K,F_1,expG2,expG1,0,nInd,keeps);
+  //  updateQ(Q,F,0,nSites,nInd,K,Q_1,nSites,expG2,expG1,0,nInd);
+  // updates Q values from iteration
+  updateQ(Q,F,0,nSites,nInd,K,Q_1,nSites,0,nInd,keeps,prodA,prodB,1);
+
+ 
+  map2domainQ(Q_1,nInd,K);
+  #ifdef CHECK
+  checkFQ(F_1,Q_1,nSites,nInd,K,__FUNCTION__);
+  #endif
+  //    fprintf(stderr,"\tq1=%f q2=%f q3=%f\n",Q_1[0][0],Q_1[0][1],Q_1[0][2]);
+  // Set step n = n+1
+  ///fixup underoverflow
+}
+
+
+
 
 void em(double** Q, double** F, int nSites, int nInd, int K,double **genos,double **F_1,double **Q_1) {
   //  fprintf(stderr,"no threads no sqem\n");
@@ -810,11 +964,15 @@ void em(double** Q, double** F, int nSites, int nInd, int K,double **genos,doubl
  
 
 
-  //  getExpGandExpG2(Q,F,0,nSites,nInd,K,genos,expG2,expG1,0,nInd);
+  // getExpGandExpG2(Q,F,0,nSites,nInd,K,genos,expG2,expG1,0,nInd);
+  // we might need one that first updates the freqs with those from the input
+  // updateFreqs!!
+  // this for calculating A and B - this is where I should update freqs with also my input GL
   getExpGandFstar(Q,F,0,nSites,nInd,K,genos,0,nInd,keeps,prodA,prodB,F_1,0);
   //  updateF(Q, F,0,nSites,nInd,K,F_1,expG2,expG1,0,nInd);
   //  updateF(Q, F,0,nSites,nInd,K,F_1,expG2,expG1,0,nInd,keeps);
   //  updateQ(Q,F,0,nSites,nInd,K,Q_1,nSites,expG2,expG1,0,nInd);
+  // updates Q values from iteration
   updateQ(Q,F,0,nSites,nInd,K,Q_1,nSites,0,nInd,keeps,prodA,prodB,1);
 
  
@@ -1206,9 +1364,10 @@ void info(){
   fprintf(stderr,"Arguments:\n");
   fprintf(stderr,"\t-likes Beagle likelihood filename\n");
   fprintf(stderr,"\t-K Number of ancestral populations\n"); 
+  fprintf(stderr,"\t-Nname Number of individuals in each reference populations\n"); 
   fprintf(stderr,"Optional:\n");
   fprintf(stderr,"\t-fname Ancestral population frequencies\n"); 
-  fprintf(stderr,"\t-qname Admixture proportions\n"); 
+  fprintf(stderr,"\t-qname Admixture proportions of each ancestral population\n"); 
   fprintf(stderr,"\t-outfiles Prefix for output files\n"); 
   fprintf(stderr,"\t-printInfo print ID and mean maf for the SNPs that were analysed\n"); 
 
@@ -1356,8 +1515,8 @@ void filterMinLrt(bgl &d,float minLrt){
   d.nSites=posi;
 }
 
-
-int main(int argc, char **argv){
+////////////////////////// it begins 
+ int main(int argc, char **argv){ 
   if(argc==1){// if no arguments, print info on program
     info();
     return 0;
@@ -1381,6 +1540,7 @@ int main(int argc, char **argv){
   const char* lname = NULL;
   const char* fname = NULL;
   const char* qname = NULL;
+  const char* Nname = NULL;
   const char* outfiles = NULL;
   int nPop = 3;
   int seed =time(NULL);
@@ -1390,28 +1550,37 @@ int main(int argc, char **argv){
   // reading arguments
   argv++;
   while(*argv){
-    if(strcmp(*argv,"-likes")==0 || strcmp(*argv,"-l")==0) lname=*++argv; 
+    // GL in the shape of beagle file
+    if(strcmp(*argv,"-likes")==0 || strcmp(*argv,"-l")==0) lname=*++argv; //name / char arrays
+    // probably will need this, implicitly in the freqs file, by default 3
     else if(strcmp(*argv,"-K")==0) nPop=atoi(*++argv); 
+    // would also need number of individuals in each ref category
     // to read start values from output from previous run 
     else if(strcmp(*argv,"-fname")==0 || strcmp(*argv,"-f")==0) fname=*++argv; 
+    // starting guess not really sure we need this
     else if(strcmp(*argv,"-qname")==0 || strcmp(*argv,"-q")==0) qname=*++argv;
+    // for reading in number of individauls in each population
+    else if(strcmp(*argv,"-Nname")==0 || strcmp(*argv,"-N")==0) Nname=*++argv;
     // prefix for output files
     else if(strcmp(*argv,"-outfiles")==0 || strcmp(*argv,"-o")==0) outfiles=*++argv; 
     // settings: seed, threads and if method==0 not accelerated
-    else if(strcmp(*argv,"-seed")==0||strcmp(*argv,"-s")==0) seed=atoi(*++argv);
+    else if(strcmp(*argv,"-seed")==0||strcmp(*argv,"-s")==0) seed=atoi(*++argv); //int - atoi - char array to integer
+    // ??
     else if(strcmp(*argv,"-P")==0) nThreads=atoi(*++argv); 
     else if(strcmp(*argv,"-printInfo")==0) printInfo=atoi(*++argv); 
     else if(strcmp(*argv,"-method")==0 || strcmp(*argv,"-m")==0) method=atoi(*++argv); 
     // different stop chriteria
-    else if(strcmp(*argv,"-tolLike50")==0||strcmp(*argv,"-lt50")==0) tolLike50=atof(*++argv);
+    else if(strcmp(*argv,"-tolLike50")==0||strcmp(*argv,"-lt50")==0) tolLike50=atof(*++argv); //float/double - atof - char array to double/float
+    // do I need those when I have only one individual??
     else if(strcmp(*argv,"-tol")==0||strcmp(*argv,"-t")==0) tol=atof(*++argv);
     else if(strcmp(*argv,"-maxiter")==0 || strcmp(*argv,"-i")==0) maxIter=atoi(*++argv); 
-    // different filterings
+    // different filterings 
     else if(strcmp(*argv,"-misTol")==0 || strcmp(*argv,"-mt")==0) misTol=atof(*++argv);
     else if(strcmp(*argv,"-minMaf")==0||strcmp(*argv,"-maf")==0) minMaf=atof(*++argv);
+    // min likelihood ratio value for maf>0
     else if(strcmp(*argv,"-minLrt")==0||strcmp(*argv,"-lrt")==0) minLrt=atof(*++argv);
     else if(strcmp(*argv,"-minInd")==0||strcmp(*argv,"-mis")==0) minInd=atoi(*++argv);
-    // different genotype callers
+    // different genotype callers - tolerance which we do use
     else if(strcmp(*argv,"-dymBound")==0) dymBound=atoi(*++argv);
     else{
       fprintf(stderr,"Unknown arg:%s\n",*argv);
@@ -1420,6 +1589,9 @@ int main(int argc, char **argv){
     }
     ++argv;
   }
+
+
+  //check that non optional options have been used. 
   if(lname==NULL){
     fprintf(stderr,"Please supply beagle file: -likes");
     info();
@@ -1428,6 +1600,8 @@ int main(int argc, char **argv){
     fprintf(stderr,"Will use beagle fname as prefix for output\n");
     outfiles=lname;
   }
+
+  //out put files
   FILE *flog=openFile(outfiles,".log");
   FILE *ffilter=openFile(outfiles,".filter");
 
@@ -1449,12 +1623,24 @@ int main(int argc, char **argv){
     
   clock_t t=clock();//how long time does the run take
   time_t t2=time(NULL);
-  
+
+ 
+  //read BEAGLE likelihood file  
+  // made into object to give it additional info
   bgl d=readBeagle(lname);
   fprintf(stderr,"Input file has dim: nsites=%d nind=%d\n",d.nSites,d.nInd);
   fprintf(flog,"Input file has dim: nsites=%d nind=%d\n",d.nSites,d.nInd);
+  
+  // printing name of first SNP out - First line of beagle treated as header
+  fprintf(stderr,"first SNP has id %s\n",d.ids[0]);
 
-  // filter sites
+  // prints out 3 first GL
+  for(int i=0;i<3;i++){
+    fprintf(stderr,"col %d has geno %f\n",i,d.genos[0][i]);
+  }
+
+  
+  // filter sites based on MAF - 
   if(minMaf!=0.0)
     filterMinMaf(d,minMaf);
   if(minLrt!=0.0)
@@ -1475,11 +1661,20 @@ int main(int argc, char **argv){
   
   //set seed
   srand(seed);
+
   //unknown parameters
+  // we only have a vector of Qs and then a matrix of freqs
+  // so allocates a an array of pointers, each pointing to a second array
+  // this gives matrix like structure of F
   double **F =allocDouble(d.nSites,nPop);
-  double **Q =allocDouble(d.nInd,nPop);
+  // double **Q =allocDouble(d.nInd,nPop);
+  double *Q = new double[nPop];
+  double *N = new double[nPop];
   double **F_new =allocDouble(d.nSites,nPop);
-  double **Q_new =allocDouble(d.nInd,nPop);
+  // double **Q_new =allocDouble(d.nInd,nPop);
+  double *Q_new = new double[nPop];
+  double *N_new = new double[nPop];
+
   
 
   //get start values
@@ -1490,27 +1685,51 @@ int main(int argc, char **argv){
 	//F[j][k]/1.01+0.005;
 	F_new[j][k]=F[j][k];
       }
-  }else
+  }else{
+    // reading in freqs of ref panel
+    // does this by first assigning F 
+    // that is a pointer to an array of pointers to arrays (matrix structure)
     readDoubleGZ(F,d.nSites,nPop,fname,0);
+  }
   if(qname==NULL){
+    // putting in an intial guess - matrix of Qs - change to vector
     for(int i=0;i<d.nInd;i++) {
       double sum=0;
       for(int k=0;k<nPop;k++){
-	Q[i][k]=rand()*1.0/RAND_MAX;
+	Q[k]=rand()*1.0/RAND_MAX;
 	//Q[i][k]/1.01+0.005;
-	sum+=Q[i][k];
+	sum+=Q[k];
       }
       for(int k=0;k<nPop;k++) {
-	Q[i][k]= Q[i][k]/sum; 
-	Q_new[i][k]=Q[i][k];
+	// to make sure that proportions sum to 1
+	Q[k]= Q[k]/sum; 
+	Q_new[k]=Q[k];
       }
     }
-  }else
-    readDouble(Q,d.nInd,nPop,qname,0);
+  }else{
+    // reading initial Qs - matrix of Qs - change to vector
+    readDouble1d(Q,nPop,qname);
+  }
+  if(Nname==NULL){
+    fprintf(stderr,"Please supply number of individauls file: -Nname");
+    info();
   
+  }else{
+    // reading initial Qs - matrix of Qs - change to vector
+    readDouble1d(N,nPop,Nname);
+  }
+  // Also managed to read in refFreqs
+
+  for(int i=0;i<3;i++){
+    fprintf(stderr,"Freq col %d has geno %f\n",i,F[0][i]);
+    fprintf(stderr,"There are this many in pop%d %f\n",i,N[i]); 
+    fprintf(stderr,"There is this ancestry in pop%d %f\n",i,Q[i]); 
+  }
+
+
   //  double res =likelihood(Q, F, d.nSites, d.nInd, nPop,d.genos);    
   //  fprintf(stderr,"startres=%f\n",res);
-  //emsquare stuff beloq
+  // square stuff beloq
   
   //  if(1) {
   
@@ -1577,6 +1796,7 @@ int main(int argc, char **argv){
   for(nit=1;SIG_COND&& nit<maxIter;nit++) {
     if(nThreads==1){
       if(method==0)//no acceleration
+	
 	em(Q, F, d.nSites, d.nInd, nPop,d.genos,F_new,Q_new);
       else{
 	if(emAccel(d,nPop,F,Q,&F_new,&Q_new,lold)==0){
@@ -1717,6 +1937,6 @@ int main(int argc, char **argv){
   fclose(ffilter);
   return 0;
 
- 
+   
 
 }
