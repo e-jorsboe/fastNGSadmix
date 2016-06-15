@@ -232,7 +232,7 @@ double emFrequency(double *loglike,int numInds, int iter,double start,char *keep
 
 
 
-void getExpGandFstarEmil(double* Q, double** F, int nSites_start,int nSites_stop, int nInd, int K,double **genos,int startI,int stopI,char **keeps,double **prodA,double **prodB,double **F_1,int thread){
+void getExpGandFstarEmil(double* Q, double** F, int nSites_start,int nSites_stop, int* nInd, int K,double **genos,int startI,int stopI,char **keeps,double **prodA,double **prodB,double **F_1,int thread){
   
   // do this for each site
     for(int j=nSites_start;j<nSites_stop;j++){
@@ -243,19 +243,12 @@ void getExpGandFstarEmil(double* Q, double** F, int nSites_start,int nSites_stop
 	sumBG[k]=0;
       }
       // This is for having more individuals
-      for(int i=0;i<nInd;i++){
-#ifdef DO_MIS
-	//	if(keeps[j][i]==0){
-	//	  expG1[j][i]= std::numeric_limits<double>::quiet_NaN();
-	//	  expG2[j][i]= std::numeric_limits<double>::quiet_NaN();
-	//	}
-	//	else{
-#endif
-	  double fpart=0;
-	  for(int k=0;k<K;k++){ //time killar
-	    // admixture adjusted freq, for each pop
-	    fpart += F[j][k] * Q[k];
-	  }
+
+      double fpart=0;
+      for(int k=0;k<K;k++){ //time killar
+	// admixture adjusted freq, for each pop
+	fpart += F[j][k] * Q[k];
+	
 	  fpart=1-fpart;
 	  // pre GL (sites x 3) * (adjusted freq)
 	  double pp0=fpart*fpart*        genos[j][0];
@@ -268,28 +261,31 @@ void getExpGandFstarEmil(double* Q, double** F, int nSites_start,int nSites_stop
 	
 	  // K is number of ancestral populations
 	  for(int k=0;k<K;k++){
-
-	    prodA[thread][i][k] += expGG/(1-fpart) * F[j][k]; //proteckMe
-	    prodB[thread][i][k] += (2-expGG)/fpart *(1- F[j][k]); //proteckMe
+	    // these are used for the calculation of Q apparently
+	    prodA[thread][k] += expGG/(1-fpart) * F[j][k]; //proteckMe
+	    prodB[thread][k] += (2-expGG)/fpart *(1- F[j][k]); //proteckMe
 	    // similar to (H/(q*f))*q, for jth marker
-	    sumAG[k] += expGG/(1-fpart) * Q[i][k]; //time killar
-	    sumBG[k] += (2-expGG)/fpart * Q[i][k];//time killar
+	    sumAG[k] += expGG/(1-fpart) * Q[k]; //time killar
+	    sumBG[k] += (2-expGG)/fpart * Q[k];//time killar
   
 	  }
-#ifdef DO_MIS
-	}
-#endif
       }
       for(int k=0;k<K;k++){
 	// put on the last f
 	sumAG[k] *= F[j][k];
 	sumBG[k] *= (1-F[j][k]);
-	// calculates new freqs
+	// update with ref panel freqs - new expected values of A and B
+	// sumAG[k]+=nInd[k]*2*F[j][k];
+	// sumBG[k]+=2*nInd[k]-(2*nInd[k]*F[j][k]);
+	// calculates new freqs - here I should update with 
 	F_1[j][k]=sumAG[k]/(sumAG[k]+sumBG[k]);
+
       }
 
     
     }
+    F=F_1;
+    
   
 }
 
