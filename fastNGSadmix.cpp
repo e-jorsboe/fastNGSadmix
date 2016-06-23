@@ -337,9 +337,178 @@ void map2domainFEmil(double** F, int nSites, int K){
   
 }
 
+
+
+
+
+///////////////////////////////////////
+// Trying to do faster version
+
+
+void getExpGandFstarEmilFast(double* Q, double** F, int nSites, double* nInd, int K,double **genos, double **F_1, double* Q_1, double** F_org){
+
+  map2domainFEmil(F, nSites, K);
+  double* hjSq = new double[nSites];
+  double* hjinvSq = new double[nSites]; 
+  double* aSum = new double[K];
+  double* bSum = new double[K];
+
+  double** sumG = allocDouble(nSites,K);
+  double** a = allocDouble(nSites,K);
+  double** b = allocDouble(nSites,K);
+
+  double rowTop = 0.0;
+  double rowPre = 0.0;
+  double ksRowSum = 0.0;
+  double ksInvRowSum = 0.0;
+
+ // set to zero, because refects values of RAM created from
+ for(int i=0;i<nSites;i++){
+   hjSq[i]=0;
+   hjinvSq[i]=0;
+   
+   for(int k=0 ; k<K ; k++){
+     sumG[i][k] = 0;
+     a[i][k] = 0;
+     b[i][k] = 0;
+     
+   }
+ }
+
+ for(int i=0;i<nSites;i++){  
+   // calculates top which genotype likelihood times prob of genotype, first col times 2, then 1, 0
+   for(int k=0;k<K;k++){
+     // this should be original refFreqs
+     sumG[i][k] = F_org[i][k] * (nInd[k]*2);
+     hjSq[i] += (F[i][k] * Q[k]);
+     hjinvSq[i] += (1-F[i][k]) * Q[k];
+
+   }
+   rowTop = (genos[i][0]*hjSq[i]*hjSq[i])*2 + (genos[i][1]*2*hjSq[i]*hjinvSq[i]);
+   rowPre = (genos[i][0] * hjSq[i] * hjSq[i] + genos[i][1] * 2 * hjSq[i] * hjinvSq[i] + genos[i][2] * hjinvSq[i] * hjinvSq[i]);
+   
+   for(int k=0 ; k<K ; k++){
+     
+     ksRowSum+=F[i][k] * Q[k];
+     ksInvRowSum+= (1-F[i][k]) * Q[k];
+   }
+   if(ksRowSum < 10e-7){
+     for(int k=0 ; k<K ; k++){
+       a[i][k] = sumG[i][k];
+     }
+   }
+   else{
+     for(int k=0 ; k<K ; k++){
+       a[i][k] = (rowTop / rowPre) * ((F[i][k] * Q[k]) / ksRowSum) + sumG[i][k];
+     }
+   }
+   if(ksInvRowSum < 10e-7){
+     for(int k=0 ; k<K ; k++){
+       b[i][k] = (nInd[k]*2) - sumG[i][k];
+     }
+   }
+   else{
+     for(int k=0 ; k<K ; k++){
+       b[i][k] = (2 - (rowTop / rowPre)) * ((1-F[i][k]) * Q[k] / ksInvRowSum) + ((nInd[k]*2) - sumG[i][k]);
+     }
+   }
+   for(int k=0 ; k<K ; k++){
+     F_1[i][k] = a[i][k] / (a[i][k] + b[i][k]);
+   }
+   
+   hjSq[i]=0.0;
+   hjinvSq[i]=0.0;
+   rowTop = 0.0;
+   rowPre = 0.0;
+   ksRowSum = 0.0;
+   ksInvRowSum = 0.0;
+   
+ }
+ 
+ // do rowSums for each row and then calculate a & b, and if all_ks has rowsum of 0 set a 0, if all_ks_inv has rowsum of 0 set b 0
+ map2domainFEmil(F_1, nSites, K);
+ 
+for(int i=0 ; i<nSites ; i++){ 
+  for(int k=0;k<K;k++){
+   
+    hjSq[i] += (F_1[i][k] * Q[k]);   
+    hjinvSq[i] += (1-F_1[i][k]) * Q[k];
+   
+  }
+  rowTop = (genos[i][0]*hjSq[i]*hjSq[i])*2 + (genos[i][1]*2*hjSq[i]*hjinvSq[i]);
+  rowPre = (genos[i][0] * hjSq[i] * hjSq[i] + genos[i][1] * 2 * hjSq[i] * hjinvSq[i] + genos[i][2] * hjinvSq[i] * hjinvSq[i]);
+
+ for(int k=0 ; k<K ; k++){
+    
+   ksRowSum+=(F_1[i][k] * Q[k]);
+   ksInvRowSum+=(1-F_1[i][k]) * Q[k];
+ }
+ if(ksRowSum < 10e-7){
+     for(int k=0 ; k<K ; k++){
+       a[i][k] = 0.0;
+     }
+ }
+ else{
+   for(int k=0 ; k<K ; k++) {
+     a[i][k] = (rowTop / rowPre) * (F_1[i][k] * Q[k] / ksRowSum);
+     
+     }
+ }
+ if(ksInvRowSum < 10e-7){
+   for(int k=0 ; k<K ; k++){
+     b[i][k] = 0.0;
+   }
+ }
+ else{
+   for(int k=0 ; k<K ; k++){
+     b[i][k] = (2 - (rowTop / rowPre)) * ((1-F_1[i][k]) * Q[k] / ksInvRowSum);
+     
+   }
+ }
+ 
+ for(int k=0 ; k<K ; k++){
+ 
+   // sum a and b first and then assignt Q
+   aSum[k]+=a[i][k];
+   bSum[k]+=b[i][k];     
+     
+   }
+ 
+   // fprintf(stderr,"Q=%f\n,",Q_1[k]);
+   rowTop = 0.0;
+   rowPre = 0.0;
+   ksRowSum = 0.0;
+   ksInvRowSum = 0.0;
+   
+ }
+ for(int k=0 ; k<K ; k++){
+     Q_1[k] = (aSum[k] + bSum[k]) / (2.0*nSites);
+ }
+map2domainQEmil(Q_1, K);
+
+dalloc(sumG,nSites);
+dalloc(a,nSites);
+dalloc(b,nSites);
+delete[] hjSq;
+delete[] hjinvSq;
+delete[] aSum;
+delete[] bSum;
+
+
+}
+
+
+
+
+
+
+
+
+
 /////////////////////////////
 // taken function from R and pasted in here
 // deleted again! and pasted yet again
+
 
 void getExpGandFstarEmil2(double* Q, double** F, int nSites, double* nInd, int K,double **genos, double **F_1, double* Q_1, double** F_org){
 
@@ -436,6 +605,10 @@ for(int i=0 ; i<nSites ; i++){
   }
   for(int k=0 ; k<K ; k++){
     F_1[i][k] = a[i][k] / (a[i][k] + b[i][k]);
+    if(i==0){
+      fprintf(stderr,"F adj=%f\n,",F_1[i][k]);
+
+    }
   }
   
   rowTop = 0.0;
@@ -555,12 +728,15 @@ void getExpGandFstarEmil(double* Q, double** F, int nSites, double* nInd, int K,
   double sumAGadj[K]; // for after freqs adjusted with input
   double sumBGadj[K];
   // do this for each site
+  for(int k=0;k<K;k++){
+    sumAGadj[k]=0;
+    sumBGadj[k]=0;
+  }
   for(int j=0;j<nSites;j++){   
     for(int k=0;k<K;k++){ //time killar
       sumAG[k]=0;
       sumBG[k]=0;
-      sumAGadj[k]=0;
-      sumBGadj[k]=0;
+      
     }
     
     double fpart=0;
@@ -572,19 +748,21 @@ void getExpGandFstarEmil(double* Q, double** F, int nSites, double* nInd, int K,
       fpartInv += (1-F[j][k]) * Q[k];
       // fpart = 1-fpart;
       // pre GL (sites x 3) * (adjusted freq)
-      double pp0=fpart*fpart*        genos[j][0];
+      double pp0=(fpartInv)*(fpartInv)*genos[j][2];
       double pp1=2*(fpartInv)*fpart*  genos[j][1];
-      double pp2=(fpartInv)*(fpartInv)*genos[j][2];
+      double pp2=fpart*fpart*        genos[j][0];
       // in order to do the sum
       double sum=pp0+pp1+pp2;
       // for calculating H
-      double expGG =(pp1+2*pp2)/sum;//range 0-2, this is the expected genotype	
+      expGG=(pp1+2*pp2)/sum;//range 0-2, this is the expected genotype	
       // K is number of ancestral populations
+
     }
     for(int k=0;k<K;k++){
       // similar to (H/(q*f))*q, for jth marker
-      sumAG[k] += expGG/(fpartInv) * (Q[k]*F[j][k]); //time killar
-      sumBG[k] += (2-expGG)/fpart * (Q[k]*(1-F[j][k]));//time killar
+      // H is added to many times :/
+      sumAG[k] = (expGG) / (fpart) * (Q[k]*F[j][k]); //time killar
+      sumBG[k] = (2-expGG) / fpartInv * (Q[k]*(1-F[j][k]));//time killar
       // adjust with ref panel, so we have input + ref expected number of alleles
       sumAG[k]+=nInd[k]*2*F_org[j][k];
       sumBG[k]+=2*nInd[k]-(2*nInd[k]*F_org[j][k]);
@@ -594,32 +772,32 @@ void getExpGandFstarEmil(double* Q, double** F, int nSites, double* nInd, int K,
     double fpartAdjInv=0;
     for(int k=0;k<K;k++){ //time killar
       // admixture adjusted freq, for each pop
+         
       F_1[j][k]=sumAG[k]/(sumAG[k]+sumBG[k]);
       fpartAdj += F_1[j][k] * Q[k];
       fpartAdjInv += (1-F_1[j][k]) * Q[k];
       // fpartAdj=1-fpartAdj;
       // pre GL (sites x 3) * (adjusted freq)
-      double pp0=fpartAdj*fpartAdj*        genos[j][0];
+      double pp0=(fpartAdjInv)*(fpartAdjInv)*genos[j][2];
       double pp1=2*(fpartAdjInv)*fpartAdj*  genos[j][1];
-      double pp2=(fpartAdjInv)*(fpartAdjInv)*genos[j][2];
+      double pp2=fpartAdj*fpartAdj*        genos[j][0];
       // in order to do the sum
       double sum=pp0+pp1+pp2;
       // for calculating H
-      double expGG =(pp1+2*pp2)/sum;//range 0-2, this is the expected genotype	
+      expGG =(pp1+2*pp2)/sum;//range 0-2, this is the expected genotype	
       // K is number of ancestral populations
     }
     for(int k=0;k<K;k++){ //time killar
-      sumAGadj[k] += expGG/(fpartAdjInv) * (Q[k] * F_1[j][k]); //proteckMe
-      sumBGadj[k] += (2-expGG)/fpartAdj * (Q[k] * (1-F_1[j][k])); //proteckMe
+      sumAGadj[k] += expGG/(fpartAdj) * (Q[k] * F_1[j][k]); //proteckMe
+      sumBGadj[k] += (2-expGG)/fpartAdjInv * (Q[k] * (1-F_1[j][k])); //proteckMe
     }
-    
     
   }
   for(int k=0;k<K;k++){ //time killar
-
     Q_1[k]=(sumAGadj[k] + sumBGadj[k])/(2.0*nSites);
   }
   map2domainQEmil(Q_1,K);
+  // should this be checked before using F_1??
   map2domainFEmil(F_1,nSites,K);
 }
 
@@ -1010,6 +1188,18 @@ double like_tsk(double **Q,double **F,int nThreads){
   }
   return res;
 }
+
+void emEmilFast(double* Q, double** F, int nSites, double* nInd, int K,double **genos,double **F_1,double *Q_1, double** F_org) {
+
+   if(Q==NULL){//cleanup
+    
+     return;
+  }
+
+   getExpGandFstarEmilFast(Q,F,nSites,nInd,K,genos,F_1,Q_1,F_org);
+
+}
+
 
 void emEmil2(double* Q, double** F, int nSites, double* nInd, int K,double **genos,double **F_1,double *Q_1, double** F_org) {
 
@@ -1431,15 +1621,15 @@ void filterMinLrt(bgl &d,float minLrt){
   int nit;
   double likeLast= lold;
   for(int nit=0; nit<100;nit++) {
-    break;
-    emEmil2(Q, F, d.nSites, N, nPop,d.genos,F_new,Q_new,F_org);
+    emEmil(Q, F, d.nSites, N, nPop,d.genos,F_new,Q_new,F_org);
     std::swap(Q,Q_new);
     std::swap(F,F_new);
     double lik = likelihoodEmil(Q, F, d.nSites, nPop,d.genos);
     likeLast=-lik;
   }  
   for(nit=1;SIG_COND&& nit<maxIter;nit++) {
-    emEmil2(Q, F, d.nSites, N, nPop,d.genos,F_new,Q_new,F_org);
+    break;
+    emEmil(Q, F, d.nSites, N, nPop,d.genos,F_new,Q_new,F_org);
     std::swap(Q,Q_new);
     std::swap(F,F_new);
 
