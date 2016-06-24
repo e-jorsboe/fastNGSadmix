@@ -1621,23 +1621,27 @@ void filterMinLrt(bgl &d,float minLrt){
   int nit;
   double likeLast= lold;
   for(int nit=0; nit<100;nit++) {
+    break;
     emEmil(Q, F, d.nSites, N, nPop,d.genos,F_new,Q_new,F_org);
     std::swap(Q,Q_new);
     std::swap(F,F_new);
     double lik = likelihoodEmil(Q, F, d.nSites, nPop,d.genos);
     likeLast=-lik;
+    fprintf(stderr,"iter[%d] like (plus) is=%f\n",nit,-likeLast);
+    fprintf(stderr,"iter[%d] like (minus) is=%f\n",nit,likeLast);
+
   }  
   for(nit=1;SIG_COND&& nit<maxIter;nit++) {
-    break;
     emEmil(Q, F, d.nSites, N, nPop,d.genos,F_new,Q_new,F_org);
     std::swap(Q,Q_new);
     std::swap(F,F_new);
 
     if((nit%3)==0 ){ //stopping criteria
-      double lik = -likelihoodEmil(Q, F, d.nSites, nPop,d.genos);
+      double lik = likelihoodEmil(Q, F, d.nSites, nPop,d.genos);
       // thres is largest differense in admixture fractions
       fprintf(stderr,"iter[%d] like is=%f thres=%f\n",nit,lik,calcThresEmil(Q,Q_new,nPop));
-      fprintf(stderr,"iter[%d] diff in likelihood is=%f",nit,std::abs(lik-likeLast));      
+      fprintf(stderr,"iter[%d] diff in likelihood is=%f\t",nit,std::abs(lik-likeLast));      
+      fprintf(stderr,"iter[%d] Q is=%f, %f, %f\t",nit,Q[0],Q[1],Q[2]);      
       //	fprintf(stderr,"iter[%d] like is=%f like old is=%f %f %f \n",nit,lik,likeLast, lik+likeLast, tolLike50);
       if(errTol>errTolMin){
 	errTol=errTol/10;
@@ -1653,7 +1657,7 @@ void filterMinLrt(bgl &d,float minLrt){
 	break;
       }
       
-      likeLast=-lik;
+      likeLast=lik;
       
     }
     
