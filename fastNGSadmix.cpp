@@ -3,6 +3,15 @@
   log:
   g++ fastNGSadmix.cpp -lz -lpthread  -O3 -o fastNGSadmix
 
+
+debug:
+  g++ fastNGSadmix.cpp -lz -lpthread -ggdb -O3 -o fastNGSadmix
+  valgrind ./fastNGSadmix -likes simulatedData/0.10_0.45_0.45_300000_d=_5_N=_3_Yoruba_Japanese_Han_GL.txt -fname simulatedData/0.10_0.45_0.45_300000_d=_5_N=_3_Yoruba_Japanese_Han_ref.txt -Nname simulatedData/0.10_0.45_0.45_300000_d=_5_N=_3_Yoruba_Japanese_Han_nInd.txt -outfiles 0.10_0.45_0.45_300000_d=_5_N=_3_Yoruba_Japanese_Han -minMaf 0 -minLrt 0 -m 1
+
+
+
+SQUAREM:::squarem1
+/home/albrecht/gitfuck/angsd/misc/ngsAdmix32.cpp
 */
  
 //optimazation parameteres for maf estimation
@@ -32,7 +41,6 @@
 
 #include <pthread.h>
 #include <errno.h>
-
 
 /////////////////////////////////////////////////////////////////////
 // globale ting: functioner + variable(ikke god stil)
@@ -135,9 +143,30 @@ typedef struct{
   double lres;//this is the likelihood for a block of data. total likelihood is sum of lres.
 }pars;
 
+typedef struct{
+ double **F_em1;
+ double *Q_em1;
+ double **F_diff1;
+ double *Q_diff1;
+ double **F_em2;
+ double *Q_em2;
+ double **F_diff2;
+ double *Q_diff2;
+ double **F_diff3;
+ double *Q_diff3;
+ double **F_tmp;
+ double *Q_tmp;
+}accFQ;
+
+
+
+
+
 //to make life simple we make stuff relating to the threading global
 pthread_t *threads = NULL;
 pars * myPars= NULL; //den ovenfor definerede struct type
+
+
 
 
 double **allocDouble(size_t x,size_t y){
@@ -203,8 +232,9 @@ double sumSquareMinus(double **mat1,double **mat2,size_t x,size_t y){
 
 //same as above but swapped.... to lazy to change code
 void dalloc(double **ret,size_t x){
-  for(size_t i=0;i<x;i++)
+  for(size_t i=0;i<x;i++){
     delete [] ret[i] ;
+  }
   delete [] ret;
 }
 
@@ -323,13 +353,13 @@ void map2domainFEmil(double** F, int nSites, int K){
     for(int k=0;k<K;k++){
       if(F[s][k]<errTol){
 	if(s==1){
-	  fprintf(stderr,"Error and freqs is: %f and error %f\n,",F[s][k],errTol);
+	  // fprintf(stderr,"Error and freqs is: %f and error %f\n",F[s][k],errTol);
 	}
 	F[s][k] = errTol;
       }
       if(F[s][k]>1-errTol){
 	if(s==1){
-	  fprintf(stderr,"1-Error and freqs is: %f and error %f\n,",F[s][k],1-errTol);
+	  // fprintf(stderr,"1-Error and freqs is: %f and error %f\n",F[s][k],1-errTol);
 	}
 	F[s][k] = 1-errTol;
       }
@@ -863,7 +893,7 @@ typedef struct{
 }bgl;
 
 //utility function for cleaning up out datastruct
-void dalloc(bgl &b){
+void dallocBeagle(bgl &b){
   for(int i=0;i<b.nSites;i++){
     delete [] b.genos[i];
     free(b.ids[i]);
@@ -873,6 +903,45 @@ void dalloc(bgl &b){
   delete [] b.genos;
   delete [] b.ids;
 }
+
+
+
+
+void dallocAccFQ(accFQ &a, int nSites){
+  dalloc(a.F_em1,nSites);
+  dalloc(a.F_em2,nSites);
+  dalloc(a.F_diff1,nSites);
+  dalloc(a.F_diff2,nSites);
+  dalloc(a.F_diff3,nSites);
+  dalloc(a.F_tmp,nSites);
+  delete [] a.Q_em1;
+  delete [] a.Q_em2;
+  delete [] a.Q_diff1;
+  delete [] a.Q_diff2;
+  delete [] a.Q_diff3;
+  delete [] a.Q_tmp;
+ 
+}
+
+
+accFQ createAccFQ(int nPop, int nSites){
+  accFQ a;
+  a.F_em1 = allocDouble(nSites,nPop);
+  a.Q_em1 = new double[nPop];
+  a.F_diff1 = allocDouble(nSites,nPop);
+  a.Q_diff1 = new double[nPop];
+  a.F_em2 = allocDouble(nSites,nPop);
+  a.Q_em2 = new double[nPop];
+  a.F_diff2 = allocDouble(nSites,nPop);
+  a.Q_diff2 = new double[nPop];
+  a.F_diff3 = allocDouble(nSites,nPop);
+  a.Q_diff3 = new double[nPop];
+  a.F_tmp = allocDouble(nSites,nPop);
+  a.Q_tmp = new double[nPop];
+  return(a);
+
+}
+
 
 /*
   plug in random variables
@@ -1084,6 +1153,44 @@ void printDoubleGz(double **ret,size_t x,size_t y,gzFile fp){
 
 int printer =0;
 
+void minus1dEmil(double *fst,double *sec,size_t x,double *res){
+  //  fprintf(stderr,"x=%lu y=%lu\n",x,y);
+  for(size_t i=0;i<x;i++){
+      //  fprintf(stderr,"i=%lu j=%lu\n",i,j);
+      res[i] = fst[i]-sec[i];
+    }
+}
+
+
+void minusEmil(double **fst,double **sec,size_t x,size_t y,double **res){
+  //  fprintf(stderr,"x=%lu y=%lu\n",x,y);
+  for(size_t i=0;i<x;i++){
+    for(size_t j=0;j<y;j++){
+      //  fprintf(stderr,"i=%lu j=%lu\n",i,j);
+      res[i][j] = fst[i][j]-sec[i][j];
+    }
+  }
+}
+
+double sumSquareEmil(double **mat,size_t x,size_t y){
+  double tmp=0;
+  for(size_t i=0;i<x;i++){
+    for(size_t j=0;j<y;j++){
+      tmp += mat[i][j]*mat[i][j];
+    }
+  }
+  return tmp;
+}
+
+double sumSquare1dEmil(double *mat,size_t x){
+  double tmp=0;
+  for(size_t i=0;i<x;i++){
+      tmp += mat[i]*mat[i];
+  }
+  return tmp;
+}
+
+
 
 double likelihoodEmil(double* Q, double** F,int nSites, int K,double **genos){
   // F is sites times npop
@@ -1215,14 +1322,198 @@ void emEmil2(double* Q, double** F, int nSites, double* nInd, int K,double **gen
 
 // genos - genotype likelihoods
 void emEmil(double* Q, double** F, int nSites, double* nInd, int K,double **genos,double **F_1,double *Q_1, double** F_org) {
-
-   if(Q==NULL){//cleanup
-    
-     return;
+  
+  double sumAG[K];
+  double sumBG[K];
+  double sumAGadj[K]; // for after freqs adjusted with input
+  double sumBGadj[K];
+  map2domainFEmil(F, nSites, K);
+  // do this for each site
+  for(int k=0;k<K;k++){
+    sumAGadj[k]=0;
+    sumBGadj[k]=0;
   }
+  for(int j=0;j<nSites;j++){   
+    for(int k=0;k<K;k++){ //time killar
+      sumAG[k]=0;
+      sumBG[k]=0;
+      
+    }
+    
+    double fpart=0;
+    double fpartInv=0;
+    double expGG=0;
+    for(int k=0;k<K;k++){ //time killar
+      // admixture adjusted freq, for each pop
+      fpart += F[j][k] * Q[k];
+      fpartInv += (1-F[j][k]) * Q[k];
+      // fpart = 1-fpart;
+      // pre GL (sites x 3) * (adjusted freq)
+      double pp0=(fpartInv)*(fpartInv)*genos[j][2];
+      double pp1=2*(fpartInv)*fpart*  genos[j][1];
+      double pp2=fpart*fpart*        genos[j][0];
+      // in order to do the sum
+      double sum=pp0+pp1+pp2;
+      // for calculating H
+      expGG=(pp1+2*pp2)/sum;//range 0-2, this is the expected genotype	
+      // K is number of ancestral populations
 
-   getExpGandFstarEmil(Q,F,nSites,nInd,K,genos,F_1,Q_1,F_org);
+    }
+    for(int k=0;k<K;k++){
+      // similar to (H/(q*f))*q, for jth marker
+      // H is added to many times :/
+      sumAG[k] = (expGG) / (fpart) * (Q[k]*F[j][k]); //time killar
+      sumBG[k] = (2-expGG) / fpartInv * (Q[k]*(1-F[j][k]));//time killar
+      // adjust with ref panel, so we have input + ref expected number of alleles
+      sumAG[k]+=nInd[k]*2*F_org[j][k];
+      sumBG[k]+=2*nInd[k]-(2*nInd[k]*F_org[j][k]);
+    }
+    
+    double fpartAdj=0;
+    double fpartAdjInv=0;
+    for(int k=0;k<K;k++){ //time killar
+      // admixture adjusted freq, for each pop
+         
+      F_1[j][k]=sumAG[k]/(sumAG[k]+sumBG[k]);
+      fpartAdj += F_1[j][k] * Q[k];
+      fpartAdjInv += (1-F_1[j][k]) * Q[k];
+      // fpartAdj=1-fpartAdj;
+      // pre GL (sites x 3) * (adjusted freq)
+      double pp0=(fpartAdjInv)*(fpartAdjInv)*genos[j][2];
+      double pp1=2*(fpartAdjInv)*fpartAdj*  genos[j][1];
+      double pp2=fpartAdj*fpartAdj*        genos[j][0];
+      // in order to do the sum
+      double sum=pp0+pp1+pp2;
+      // for calculating H
+      expGG =(pp1+2*pp2)/sum;//range 0-2, this is the expected genotype	
+      // K is number of ancestral populations
+    }
+    for(int k=0;k<K;k++){ //time killar
+      sumAGadj[k] += expGG/(fpartAdj) * (Q[k] * F_1[j][k]); //proteckMe
+      sumBGadj[k] += (2-expGG)/fpartAdjInv * (Q[k] * (1-F_1[j][k])); //proteckMe
+    }
+    
+  }
+  for(int k=0;k<K;k++){ //time killar
+    Q_1[k]=(sumAGadj[k] + sumBGadj[k])/(2.0*nSites);
+  }
+  map2domainQEmil(Q_1,K);
+  // should this be checked before using F_1??
+  map2domainFEmil(F_1,nSites,K);
 
+}
+
+
+//returnval =1 continue, rturnval =0, convergence has been achieved
+// lold in this function is a reference to the argument passed on to it, so every change in this function is also applied to function outside
+int emAccelEmil(const bgl &d, double* nInd, int K, double **F,double *Q,double **F_new,double *Q_new,double &lold, double** F_org, accFQ &a){
+  //maybe these should be usersettable?
+  double stepMin =1;
+  double stepMax0 = 1;
+  static double stepMax=stepMax0;
+  double mstep=4;
+  double objfnInc=1;
+
+  
+  // first EM run
+  emEmil(Q, F, d.nSites, nInd, K,d.genos, a.F_em1, a.Q_em1, F_org);
+
+  // diff between 0 and 1 assigned to diff1
+  minusEmil(a.F_em1,F,d.nSites,K,a.F_diff1);
+  minus1dEmil(a.Q_em1,Q,K,a.Q_diff1);
+ 
+  // calculates "norm" of F_diff1 and Q_diff1 and sums them
+  double sr2 = sumSquareEmil(a.F_diff1,d.nSites,K)+sumSquare1dEmil(a.Q_diff1,K);
+  // checks if convergence
+  if(sqrt(sr2)<tol){
+    return 0;
+    //break;
+  }
+  // second EM run
+  emEmil(a.Q_em1, a.F_em1, d.nSites, nInd, K,d.genos, a.F_em2, a.Q_em2, F_org);
+  // diff between 1 and 2 assigned to diff2  
+  minusEmil(a.F_em2,a.F_em1,d.nSites,K,a.F_diff2);
+  minus1dEmil(a.Q_em2,a.Q_em1,K,a.Q_diff2);
+
+  // calculates "norm" of F_diff2 and Q_diff2 and sums them 
+  double sq2 = sumSquareEmil(a.F_diff2,d.nSites,K)+sumSquare1dEmil(a.Q_diff2,K);
+  // checks if convergence - a second time
+  if(sqrt(sq2)<tol){
+    return 0;
+    //    break;
+  }
+  // diff between diff1 and diff2
+  minusEmil(a.F_diff2,a.F_diff1,d.nSites,K,a.F_diff3);
+  minus1dEmil(a.Q_diff2,a.Q_diff1,K,a.Q_diff3);
+  // WHY NOT SQ2 - because it is v = diff2 - diff1 actually
+  double sv2 = sumSquareEmil(a.F_diff3,d.nSites,K)+sumSquare1dEmil(a.Q_diff3,K);
+  // does not have to make alpha negative because changed accordingly in equations
+  double alpha = sqrt(sr2/sv2);
+
+  fprintf(stderr,"alpha before=%f %f %f\n",alpha,sq2,sv2);  
+  // makes sure alpha does not go below 1 and above stepMax
+  alpha = std::max(stepMin,std::min(stepMax,alpha));
+
+  fprintf(stderr,"alpha=%f %f %f\n",alpha,sq2,sv2);  
+  // update with the linear combination
+  // updates F with new values via alpha - where alpha controls rate of change
+  for(size_t i=0;i<d.nSites;i++){
+    for(size_t j=0;j<K;j++){
+      // (*F_new)[i][j] wtf??
+      F_new[i][j] = F[i][j]+2*alpha*a.F_diff1[i][j]+alpha*alpha*a.F_diff3[i][j];
+      a.F_tmp[i][j] = 1.0;
+     
+    }
+  }
+  // check that F has no entries of 0
+  map2domainFEmil(F_new,d.nSites,K);
+  
+  for(size_t i=0;i<K;i++){
+    // because alpha pos in code, does not need minus -(-alpha) = alpha
+    Q_new[i] = Q[i]+2*alpha*a.Q_diff1[i]+alpha*alpha*a.Q_diff3[i];
+    a.Q_tmp[i] = 1.0;
+  }
+  
+  double** tmpAdrF=a.F_tmp;
+  double* tmpAdrQ=a.Q_tmp;
+  map2domainQEmil(Q_new,K);
+  // if alpha not too close (0.01 close) to 1 
+  if (fabs(alpha - 1) > 0.01){
+    // we estimate new Q and F, with our inferred Q and F via alpha
+    emEmil(Q_new, F_new, d.nSites, nInd, K,d.genos,a.F_tmp,a.Q_tmp,F_org);
+    // assign value of Q_tmp and F_tmp to Q_new and F_new
+        std::swap(Q_new,a.Q_tmp);
+    std::swap(F_new,a.F_tmp);
+    // in order to avoid a.Q_tmp or a.F_tmp pointing to Q and F
+    a.Q_tmp=tmpAdrQ;
+    a.F_tmp=tmpAdrF;
+  }
+  double lnew =0;
+
+  // delete??
+  //#ifdef DO_MIS
+  // lnew = -likelihood(*Q_new, *F_new, d.nSites, d.nInd, nPop,d.genos);
+  // if ( (lnew > lold + objfnInc)) {
+  // fprintf(stderr,"bad guess in %s\n", __FUNCTION__);
+  //    *Q_new = Q_em2;
+  //    *F_new =F_em2;
+  // std::swap(*Q_new,Q_em2);
+  // std::swap(*F_new,F_em2);
+  // lnew = -likelihood(*Q_new, *F_new, d.nSites, d.nInd, nPop,d.genos);
+  // if (alpha == stepMax)
+  //  stepMax = std::max(stepMax0, stepMax/mstep);
+  //} 
+  //#endif
+  // increases possibility of step size, first run stepMax = 1, mstep = 4
+  if (alpha == stepMax) {
+    stepMax = mstep*stepMax;
+  }
+  // #ifdef CHECK
+  // checkFQ(*F_new,*Q_new,d.nSites,d.nInd,nPop,"bad F new\n");
+  // #endif
+  // in order to assign value to memory space that holds lold and thereby "globally"
+  lold=lnew;
+  return 1;
 }
 
 
@@ -1549,6 +1840,8 @@ void filterMinLrt(bgl &d,float minLrt){
   //set seed
   srand(seed);
 
+  accFQ a = createAccFQ(nPop, d.nSites);
+ 
   //unknown parameters
   // we only have a vector of Qs and then a matrix of freqs
   // so allocates a an array of pointers, each pointing to a second array
@@ -1560,7 +1853,6 @@ void filterMinLrt(bgl &d,float minLrt){
 
   double **F_new = allocDouble(d.nSites,nPop);
   double *Q_new = new double[nPop];
-  double *N_new = new double[nPop];
 
   //get start values
   readDoubleGZ(F,d.nSites,nPop,fname,0);
@@ -1611,7 +1903,7 @@ void filterMinLrt(bgl &d,float minLrt){
   //update the internal stuff in the pars for the threading
  
 
-  double lold = -likelihoodEmil(Q, F, d.nSites, nPop,d.genos);
+  double lold = likelihoodEmil(Q, F, d.nSites, nPop,d.genos);
 
   fprintf(stderr,"iter[start] like is=%f\n",lold);
 
@@ -1620,6 +1912,7 @@ void filterMinLrt(bgl &d,float minLrt){
   // we have 4 possible ways, threading/nothreading line/noline
   int nit;
   double likeLast= lold;
+
   for(int nit=0; nit<100;nit++) {
     break;
     emEmil(Q, F, d.nSites, N, nPop,d.genos,F_new,Q_new,F_org);
@@ -1631,12 +1924,31 @@ void filterMinLrt(bgl &d,float minLrt){
     fprintf(stderr,"iter[%d] like (minus) is=%f\n",nit,likeLast);
 
   }  
-  for(nit=1;SIG_COND&& nit<maxIter;nit++) {
-    emEmil(Q, F, d.nSites, N, nPop,d.genos,F_new,Q_new,F_org);
+  for(nit=1;SIG_COND&& nit<maxIter;nit++) { 
+    if(method==0){
+      emEmil(Q, F, d.nSites, N, nPop,d.genos,F_new,Q_new,F_org);
+    } 
+    else{    
+      // lold is being created as a reference in function, so when changed in function
+      // also changed here
+      if(emAccelEmil(d, N, nPop, F, Q, F_new, Q_new,lold,F_org, a)==0){
+	if(errTol>errTolMin){
+	  errTol=errTol/5;
+	  if(errTol<errTolMin){
+	    errTol=errTolMin;
+	  }
+	}
+	else{
+	  fprintf(stderr,"EM accelerated has reached convergence with tol %f\n",tol);
+	  break; //if we have achieved convergence
+	}
+      }
+    }
+        
     std::swap(Q,Q_new);
     std::swap(F,F_new);
 
-    if((nit%3)==0 ){ //stopping criteria
+    if((nit%5)==0 ){ //stopping criteria
       double lik = likelihoodEmil(Q, F, d.nSites, nPop,d.genos);
       // thres is largest differense in admixture fractions
       fprintf(stderr,"iter[%d] like is=%f thres=%f\n",nit,lik,calcThresEmil(Q,Q_new,nPop));
@@ -1680,23 +1992,33 @@ void filterMinLrt(bgl &d,float minLrt){
   
   //deallocate memory 
 
-  dalloc(F_new,d.nSites);
+  fprintf(stderr,"F=%p, F_tmp=%p\n",F,a.F_tmp);
+  fprintf(stderr,"Q=%p, Q_tmp=%p\n",Q,a.Q_tmp);
+  double nop;
+
+  dalloc(F_new,d.nSites);  
+  dalloc(F_org,d.nSites);
+
+  delete [] N;
   delete [] Q_new;
-  dalloc(d);
+
+  // problem with F and F_tmp being same pointer 
+  // not there any more really
+  if(F!=a.F_tmp){
+    dalloc(F,d.nSites);
+  }
+  if(Q!=a.Q_tmp){
+
+    delete [] Q;
+  }
+
+  dallocAccFQ(a,d.nSites);
+  dallocBeagle(d);
+
   delete [] threads;
   delete [] myPars;
-  
-  // if(nThreads==1){
-  //  em(NULL, NULL, 0, 0, 0,NULL,NULL,NULL);
-  // }
 
 
-  for(int j = 0; j < d.nSites; j++) {
-    delete[] F[j];
-  }
-  delete[] F;
-  
-  delete[] Q;
   for(int i=0;1&&i<dumpedFiles.size();i++){
     //    fprintf(stderr,"dumpedfiles are: %s\n",dumpedFiles[i]);
     free(dumpedFiles[i]);
@@ -1706,7 +2028,6 @@ void filterMinLrt(bgl &d,float minLrt){
 
 
   // print to log file
-
   fprintf(flog, "\t[ALL done] cpu-time used =  %.2f sec\n", (float)(clock() - t) / CLOCKS_PER_SEC);
   fprintf(flog, "\t[ALL done] walltime used =  %.2f sec\n", (float)(time(NULL) - t2));  
   fprintf(flog,"best like=%f after %d iterations\n",lold,nit);
