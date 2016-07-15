@@ -121,18 +121,14 @@ accFQ createAccFQ(int nPop, int nSites){
 }
 
 void minus1dEmil(double *fst,double *sec,size_t x,double *res){
-  //  fprintf(stderr,"x=%lu y=%lu\n",x,y);
   for(size_t i=0;i<x;i++){
-      //  fprintf(stderr,"i=%lu j=%lu\n",i,j);
       res[i] = fst[i]-sec[i];
     }
 }
 
 void minusEmil(double **fst,double **sec,size_t x,size_t y,double **res){
-  //  fprintf(stderr,"x=%lu y=%lu\n",x,y);
   for(size_t i=0;i<x;i++){
     for(size_t j=0;j<y;j++){
-      //  fprintf(stderr,"i=%lu j=%lu\n",i,j);
       res[i][j] = fst[i][j]-sec[i][j];
     }
   }
@@ -228,8 +224,7 @@ double emFrequency(double *loglike,int numInds, int iter,double start,char *keep
       sum+=(W1+2*W2)/(2*(W0+W1+W2));
     }
     p=-999;
-  }
-  
+  } 
   return(p);
 }
 
@@ -260,7 +255,6 @@ void map2domainFEmil(double** F, int nSites, int nPop){
 	F[s][k] = 1-errTol;
       }
     }
-  
 }
 
 ////////////////////////
@@ -485,7 +479,7 @@ void readDoubleGZ(double **d,int x,int y,const char*fname,int neg){
   int lens=1000000;
   char buf[lens];
   for(int i=0;i<x;i++){
-      if(NULL==gzgets(fp,buf,lens)){
+    if(NULL==gzgets(fp,buf,lens)){
       fprintf(stderr,"Increase buffer\n");
       exit(0);
     }
@@ -503,7 +497,6 @@ void readDoubleGZ(double **d,int x,int y,const char*fname,int neg){
   gzclose(fp);
 }
 
-// Emil
 void readDouble1d(double *d,int x,const char*fname){
   fprintf(stderr,"opening : %s with x=%d\n",fname,x);
   const char*delims=" \n\t";
@@ -557,6 +550,47 @@ double likelihoodEmil(double* Q, double** F,int nSites, int nPop,double **genos)
   return prod_ind;
 }
 
+void emUnadjusted(double* Q, double** F, int nSites, int nPop,double **genos,double *Q_1) {
+  double sumAG[nPop];
+  double sumBG[nPop];
+  map2domainFEmil(F, nSites, nPop);
+  // do this for each site
+  for(int k=0;k<nPop;k++){ //time killar
+    sumAG[k]=0;
+    sumBG[k]=0;
+  }
+  for(int j=0;j<nSites;j++){   
+    double fpart=0;
+    double fpartInv=0;
+    double expGG=0;
+    for(int k=0;k<nPop;k++){ //time killar
+      // admixture adjusted freq, for each pop
+      // this has to be F
+      fpart += F[j][k] * Q[k];
+      fpartInv += (1-F[j][k]) * Q[k];
+      // fpartAdj=1-fpartAdj;
+      // pre GL (sites x 3) * (adjusted freq)
+      double pp0=(fpartInv)*(fpartInv)*genos[j][2];
+      double pp1=2*(fpartInv)*fpart*  genos[j][1];
+      double pp2=fpart*fpart*        genos[j][0];
+      // in order to do the sum
+      double sum=pp0+pp1+pp2;
+      // for calculating H
+      expGG =(pp1+2*pp2)/sum;//range 0-2, this is the expected genotype	  
+      // nPop is number of ancestral populations
+    }
+    for(int k=0;k<nPop;k++){ //time killar
+      sumAG[k] += expGG/(fpart) * (Q[k] * F[j][k]); //proteckMe
+      sumBG[k] += (2-expGG)/fpartInv * (Q[k] * (1-F[j][k])); //proteckMe
+    }
+  }
+  for(int k=0;k<nPop;k++){ //time killar
+    Q_1[k]=(sumAG[k] + sumBG[k])/(2.0*nSites);
+  }
+  map2domainQEmil(Q_1,nPop);
+  // should this be checked before using F_1??
+}
+
 // genos - genotype likelihoods
 void emEmil(double* Q, double** F, int nSites, double* nInd, int nPop,double **genos,double **F_1,double *Q_1, double** F_org) {
   double sumAG[nPop];
@@ -591,7 +625,6 @@ void emEmil(double* Q, double** F, int nSites, double* nInd, int nPop,double **g
       // for calculating H
       expGG=(pp1+2*pp2)/sum;//range 0-2, this is the expected genotype	
       // nPop is number of ancestral populations
-
     }
     for(int k=0;k<nPop;k++){
       // similar to (H/(q*f))*q, for jth marker
@@ -606,6 +639,7 @@ void emEmil(double* Q, double** F, int nSites, double* nInd, int nPop,double **g
     double fpartAdjInv=0;
     for(int k=0;k<nPop;k++){ //time killar
       // admixture adjusted freq, for each pop
+      // this has to be F
       F_1[j][k]=sumAG[k]/(sumAG[k]+sumBG[k]);
       fpartAdj += F_1[j][k] * Q[k];
       fpartAdjInv += (1-F_1[j][k]) * Q[k];
@@ -633,6 +667,68 @@ void emEmil(double* Q, double** F, int nSites, double* nInd, int nPop,double **g
   map2domainFEmil(F_1,nSites,nPop);
 }
 
+int emAccelUnadjusted(const bgl &d, int nPop, double **F,double *Q,double *Q_new,double &lold, accFQ &a){
+  //maybe these should be usersettable?
+  double stepMin =1;
+  double stepMax0 = 1;
+  static double stepMax=stepMax0;
+  double mstep=4;
+  double objfnInc=1;
+  // first EM run
+  emUnadjusted(Q, F, d.nSites, nPop,d.genos, a.Q_em1);
+  // diff between 0 and 1 assigned to diff1
+  minus1dEmil(a.Q_em1,Q,nPop,a.Q_diff1);
+  // calculates "norm" of F_diff1 and Q_diff1 and sums them
+  double sr2 = sumSquare1dEmil(a.Q_diff1,nPop);
+  // checks if convergence
+  if(sqrt(sr2)<tol){
+    return 0;
+  }
+  // second EM run
+  emUnadjusted(a.Q_em1, F, d.nSites, nPop,d.genos, a.Q_em2);
+  // diff between 1 and 2 assigned to diff2  
+  minus1dEmil(a.Q_em2,a.Q_em1,nPop,a.Q_diff2);
+  // calculates "norm" of F_diff2 and Q_diff2 and sums them 
+  double sq2 = sumSquare1dEmil(a.Q_diff2,nPop);
+  // checks if convergence - a second time
+  if(sqrt(sq2)<tol){
+    return 0;
+  }
+  // diff between diff1 and diff2
+  minus1dEmil(a.Q_diff2,a.Q_diff1,nPop,a.Q_diff3);
+  // WHY NOT SQ2 - because it is v = diff2 - diff1 actually
+  double sv2 = sumSquare1dEmil(a.Q_diff3,nPop);
+  // does not have to make alpha negative because changed accordingly in equations
+  double alpha = sqrt(sr2/sv2);
+  // makes sure alpha does not go below 1 and above stepMax
+  alpha = std::max(stepMin,std::min(stepMax,alpha));
+  // update with the linear combination
+  // updates F with new values via alpha - where alpha controls rate of change
+  // check that F has no entries of 0
+  for(size_t i=0;i<nPop;i++){
+    // because alpha pos in code, does not need minus -(-alpha) = alpha
+    Q_new[i] = Q[i]+2*alpha*a.Q_diff1[i]+alpha*alpha*a.Q_diff3[i];
+    a.Q_tmp[i] = 1.0;
+  }
+  double* tmpAdrQ=a.Q_tmp;
+  map2domainQEmil(Q_new,nPop);
+  // if alpha not too close (0.01 close) to 1 
+  if (fabs(alpha - 1) > 0.01){
+    // we estimate new Q and F, with our inferred Q and F via alpha
+    emUnadjusted(Q_new, F, d.nSites, nPop,d.genos,a.Q_tmp);
+    // assign value of Q_tmp and F_tmp to Q_new and F_new
+    std::swap(Q_new,a.Q_tmp);
+    // in order to avoid a.Q_tmp or a.F_tmp pointing to Q and F
+    a.Q_tmp=tmpAdrQ;
+  }
+  double lnew =0;
+  if (alpha == stepMax) {
+    stepMax = mstep*stepMax;
+  }
+  lold=lnew;
+  return 1;
+}
+
 //returnval =1 continue, rturnval =0, convergence has been achieved
 // lold in this function is a reference to the argument passed on to it, so every change in this function is also applied to function outside
 int emAccelEmil(const bgl &d, double* nInd, int nPop, double **F,double *Q,double **F_new,double *Q_new,double &lold, double** F_org, accFQ &a){
@@ -648,7 +744,9 @@ int emAccelEmil(const bgl &d, double* nInd, int nPop, double **F,double *Q,doubl
   minusEmil(a.F_em1,F,d.nSites,nPop,a.F_diff1);
   minus1dEmil(a.Q_em1,Q,nPop,a.Q_diff1);
   // calculates "norm" of F_diff1 and Q_diff1 and sums them
-  double sr2 = sumSquareEmil(a.F_diff1,d.nSites,nPop)+sumSquare1dEmil(a.Q_diff1,nPop);
+  //  double sr2 = sumSquareEmil(a.F_diff1,d.nSites,nPop)+sumSquare1dEmil(a.Q_diff1,nPop);
+  // SQUAREM also only bases theta on Q, I do not change F very much - this is faster
+  double sr2 = sumSquare1dEmil(a.Q_diff1,nPop);
   // checks if convergence
   if(sqrt(sr2)<tol){
     return 0;
@@ -660,7 +758,9 @@ int emAccelEmil(const bgl &d, double* nInd, int nPop, double **F,double *Q,doubl
   minusEmil(a.F_em2,a.F_em1,d.nSites,nPop,a.F_diff2);
   minus1dEmil(a.Q_em2,a.Q_em1,nPop,a.Q_diff2);
   // calculates "norm" of F_diff2 and Q_diff2 and sums them 
-  double sq2 = sumSquareEmil(a.F_diff2,d.nSites,nPop)+sumSquare1dEmil(a.Q_diff2,nPop);
+  //double sq2 = sumSquareEmil(a.F_diff2,d.nSites,nPop)+sumSquare1dEmil(a.Q_diff2,nPop);
+  // SQUAREM also only bases theta on Q, I do not change F very much - this is faster
+  double sq2 = sumSquare1dEmil(a.Q_diff2,nPop);
   // checks if convergence - a second time
   if(sqrt(sq2)<tol){
     return 0;
@@ -670,14 +770,13 @@ int emAccelEmil(const bgl &d, double* nInd, int nPop, double **F,double *Q,doubl
   minusEmil(a.F_diff2,a.F_diff1,d.nSites,nPop,a.F_diff3);
   minus1dEmil(a.Q_diff2,a.Q_diff1,nPop,a.Q_diff3);
   // WHY NOT SQ2 - because it is v = diff2 - diff1 actually
-  double sv2 = sumSquareEmil(a.F_diff3,d.nSites,nPop)+sumSquare1dEmil(a.Q_diff3,nPop);
+  //double sv2 = sumSquareEmil(a.F_diff3,d.nSites,nPop)+sumSquare1dEmil(a.Q_diff3,nPop);
+  // SQUAREM also only bases theta on Q, I do not change F very much - this is faster
+  double sv2 = sumSquare1dEmil(a.Q_diff3,nPop);
   // does not have to make alpha negative because changed accordingly in equations
   double alpha = sqrt(sr2/sv2);
-  fprintf(stderr,"alpha before=%f %f %f\n",alpha,sq2,sv2);  
   // makes sure alpha does not go below 1 and above stepMax
   alpha = std::max(stepMin,std::min(stepMax,alpha));
-  fprintf(stderr,"alpha=%f %f %f\n",alpha,sq2,sv2);  
-  // update with the linear combination
   // updates F with new values via alpha - where alpha controls rate of change
   for(size_t i=0;i<d.nSites;i++){
     for(size_t j=0;j<nPop;j++){
@@ -727,26 +826,27 @@ void info(){
   fprintf(stderr,"\t-qname Admixture proportions of each ancestral population\n"); 
   fprintf(stderr,"\t-outfiles Prefix for output files\n"); 
   fprintf(stderr,"\t-printInfo print ID and mean maf for the SNPs that were analysed\n"); 
-  fprintf(stderr,"\t-printFreq print admixture adjusted allele frequencies of reference panel + input individual\n"); 
+  fprintf(stderr,"\t-printFreq print admixture adjusted allele frequencies of reference panel + input individual (1: yes, 0: no (default))\n"); 
 
   fprintf(stderr,"Setup:\n"); 
+  fprintf(stderr,"\t-doAdjust Adjusts the frequencies in the reference populations with the input (1: yes (default), 0: no)\n");
   fprintf(stderr,"\t-seed Seed for initial guess in EM\n"); 
   fprintf(stderr,"\t-P Number of threads\n"); 
-  fprintf(stderr,"\t-method If 0 no acceleration of EM algorithm\n"); 
+  fprintf(stderr,"\t-method If 0 no acceleration of EM algorithm (1: yes (default), 0: no)\n"); 
   fprintf(stderr,"\t-misTol Tolerance for considering site as missing\n");
 
   fprintf(stderr,"Stop chriteria:\n"); 
+  fprintf(stderr,"\t-Qconv Stopping criteria based on change in Q (works best when using doAdjust) (1: yes, 0: no (default))\n"); 
+  fprintf(stderr,"\t-Qtol Tolerance value for stopping criteria based on change in Q (0.001 (default))\n"); 
   fprintf(stderr,"\t-tolLike50 Loglikelihood difference in 50 iterations\n"); 
   fprintf(stderr,"\t-tol Tolerance for convergence\n"); 
   fprintf(stderr,"\t-dymBound Use dymamic boundaries (1: yes (default) 0: no)\n"); 
   fprintf(stderr,"\t-maxiter Maximum number of EM iterations\n"); 
 
-
   fprintf(stderr,"Filtering\n"); 
   fprintf(stderr,"\t-minMaf Minimum minor allele frequency\n"); 
   fprintf(stderr,"\t-minLrt Minimum likelihood ratio value for maf>0\n"); 
   fprintf(stderr,"\t-minInd Minumum number of informative individuals\n");
-
 
   exit(0);
 }
@@ -766,8 +866,6 @@ float calcThresEmil(double *d1,double *d2, int x){
   // arrays has dimention x times y
   float diff=0;
   for(int i=0;i<x;i++){
-
-      //      fprintf(stderr,"diiffs=%f\n",fabs(d1[i][j]-d2[i][j]));
     if(fabs(d1[i]-d2[i])>diff){
       diff=fabs(d1[i]-d2[i]);
     }
@@ -776,7 +874,6 @@ float calcThresEmil(double *d1,double *d2, int x){
 }
 
 void printLikes(bgl &d){
-  // to write likelihoods for debugging
   for(int s=0;s<d.nSites;s++){
     double *g  = d.genos[s];
     for(int i=0;i<d.nInd;i++){
@@ -796,12 +893,10 @@ void printKeepSites(bgl &d,FILE *ffilter){
  }
 }
 
-//void modLikesMinMaf(bgl &d,float minMaf){
+
 void filterMinMaf(bgl &d,float minMaf){
-  //  fprintf(stderr,"WARNING filtering minMaf=%f \n",minMaf);
   int posi =0;
   for(int s=0;s<d.nSites;s++){
-    //    fprintf(stderr,"minmaf=%f mafs[%d]=%f lik=%f\n",minMaf,s,d.mafs[s],lik);
     if(d.mafs[s]>minMaf&&d.mafs[s]<1-minMaf){
       d.genos[posi] = d.genos[s];
       d.major[posi] = d.major[s];
@@ -811,16 +906,12 @@ void filterMinMaf(bgl &d,float minMaf){
       d.keepInd[posi] = d.keepInd[s];
       d.mafs[posi] = d.mafs[s];
       posi++;   
-    }else{
-      //      fprintf(stderr,"skippping\n");
     }
   }
   d.nSites=posi;
 }
 
-//void modLikesMiss(bgl &d,int minInd){
 void filterMiss(bgl &d,int minInd){
-  //  fprintf(stderr,"WARNING filtering mis=%d \n",minInd);
   int posi =0;
   for(int s=0;s<d.nSites;s++){
     if(d.keepInd[s]>minInd){
@@ -832,21 +923,17 @@ void filterMiss(bgl &d,int minInd){
       d.keepInd[posi] = d.keepInd[s];
       d.mafs[posi] = d.mafs[s];
       posi++;   
-    }else{
-      // fprintf(stderr,"skippping\n");
     }
   }
   d.nSites=posi;
 }
 
-//void modLikesMinLrt(bgl &d,float minLrt){
+
 void filterMinLrt(bgl &d,float minLrt){
-  //  fprintf(stderr,"WARNING filtering minlrt=%f \n",minLrt);
   int posi =0;
   for(int s=0;s<d.nSites;s++){
     float lik=likeFixedMinor(d.mafs[s],d.genos[s],d.nInd,d.keeps[s]);
     float lik0=likeFixedMinor(0.0,d.genos[s],d.nInd,d.keeps[s]);
-    //    fprintf(stderr,"minlrt=%f mafs[%d]=%f lik=%f lik0=%f 2*(lik0-lik)=%f\n",minLrt,s,d.mafs[s],lik,lik0,2.0*(lik0-lik));
     if(2.0*(lik0-lik)>minLrt){
       d.genos[posi] = d.genos[s];
       d.major[posi] = d.major[s];
@@ -856,8 +943,6 @@ void filterMinLrt(bgl &d,float minLrt){
       d.keepInd[posi] = d.keepInd[s];
       d.mafs[posi] = d.mafs[s];
       posi++;   
-    }else{
-      //  fprintf(stderr,"skippping\n");
     }
   }
   d.nSites=posi;
@@ -884,6 +969,7 @@ void filterMinLrt(bgl &d,float minLrt){
   int minInd = 0;
   int printInfo = 0;
   int printFreq = 0;
+  int doAdjust = 1;
   float minMaf =0.05;
   float minLrt =0;
   const char* lname = NULL;
@@ -893,9 +979,10 @@ void filterMinLrt(bgl &d,float minLrt){
   const char* outfiles = NULL;
   int nPop = 3;
   int seed =time(NULL);
-  int nThreads = 1;
   // float tolLike50=0.1;
   float tolLike50=0.01; // changed by Emil
+  int Qconv = 0;
+  double Qtol = 0.001;
   // reading arguments
   argv++;
   while(*argv){
@@ -914,12 +1001,16 @@ void filterMinLrt(bgl &d,float minLrt){
     else if(strcmp(*argv,"-outfiles")==0 || strcmp(*argv,"-o")==0) outfiles=*++argv; 
     // settings: seed, threads and if method==0 not accelerated
     else if(strcmp(*argv,"-seed")==0||strcmp(*argv,"-s")==0) seed=atoi(*++argv); //int - atoi - char array to integer
-    else if(strcmp(*argv,"-P")==0) nThreads=atoi(*++argv); 
     // flag for printing adjusted freqs
     else if(strcmp(*argv,"-printFreq")==0) printFreq=atoi(*++argv); 
     else if(strcmp(*argv,"-printInfo")==0) printInfo=atoi(*++argv); 
+    // flag for doing Adjustment
+    else if(strcmp(*argv,"-doAdjust")==0) doAdjust=atoi(*++argv);
     else if(strcmp(*argv,"-method")==0 || strcmp(*argv,"-m")==0) method=atoi(*++argv); 
-    // different stop chriteria
+    // different stop criteria - whether based on diff in Q values
+    else if(strcmp(*argv,"-Qconv")==0) Qconv=atoi(*++argv); 
+    // tolerance for Q stopping criteria
+    else if(strcmp(*argv,"-Qtol")==0) Qtol=atof(*++argv); 
     else if(strcmp(*argv,"-tolLike50")==0||strcmp(*argv,"-lt50")==0) tolLike50=atof(*++argv); //float/double - atof - char array to double/float
     // do I need those when I have only one individual??
     else if(strcmp(*argv,"-tol")==0||strcmp(*argv,"-t")==0) tol=atof(*++argv);
@@ -956,12 +1047,12 @@ void filterMinLrt(bgl &d,float minLrt){
   FILE *ffilter=openFile(outfiles,".filter");
 
   fprintf(stderr,"Input: lname=%s nPop=%d, fname=%s qname=%s outfiles=%s\n",lname,nPop,fname,qname,outfiles);
-  fprintf(stderr,"Setup: seed=%d nThreads=%d method=%d\n",seed,nThreads,method);
+  fprintf(stderr,"Setup: seed=%d method=%d\n",seed,method);
   fprintf(stderr,"Convergence: maxIter=%d tol=%f tolLike50=%f dymBound=%d\n",maxIter,tol,tolLike50,dymBound);
   fprintf(stderr,"Filters: misTol=%f minMaf=%f minLrt=%f minInd=%d\n",misTol,minMaf,minLrt,minInd);
 
   fprintf(flog,"Input: lname=%s nPop=%d, fname=%s qname=%s outfiles=%s\n",lname,nPop,fname,qname,outfiles);
-  fprintf(flog,"Setup: seed=%d nThreads=%d method=%d\n",seed,nThreads,method);
+  fprintf(flog,"Setup: seed=%d method=%d\n",seed,method);
   fprintf(flog,"Convergence: maxIter=%d tol=%f tolLike50=%f dymBound=%d\n",maxIter,tol,tolLike50,dymBound);
   fprintf(flog,"Filters: misTol=%f minMaf=%f minLrt=%f minInd=%d\n",misTol,minMaf,minLrt,minInd);
 
@@ -978,7 +1069,6 @@ void filterMinLrt(bgl &d,float minLrt){
   bgl d=readBeagle(lname);
   fprintf(stderr,"Input file has dim: nsites=%d nind=%d\n",d.nSites,d.nInd);
   fprintf(flog,"Input file has dim: nsites=%d nind=%d\n",d.nSites,d.nInd);
-  
   // filter sites based on MAF - 
   if(minMaf!=0.0)
     filterMinMaf(d,minMaf);
@@ -1004,7 +1094,13 @@ void filterMinLrt(bgl &d,float minLrt){
   // this gives matrix like structure of F
   double **F = allocDouble(d.nSites,nPop);
   // F_org is for storing initial freqs from ref panel
-  double **F_org = allocDouble(d.nSites,nPop);
+  double **F_org=NULL;
+  
+  if(doAdjust>0){
+    F_org = allocDouble(d.nSites,nPop);
+    readDoubleGZ(F_org,d.nSites,nPop,fname,0);
+  }
+  
   double *Q = new double[nPop];
   double *N = new double[nPop];
 
@@ -1013,9 +1109,8 @@ void filterMinLrt(bgl &d,float minLrt){
 
   //get start values
   readDoubleGZ(F,d.nSites,nPop,fname,0);
-  readDoubleGZ(F_org,d.nSites,nPop,fname,0);
-  // putting in an intial guess - matrix of Qs - change to vector
-  
+
+  // putting in an intial guess 
   double sum=0;
   for(int k=0;k<nPop;k++){
     Q[k]=1.0/nPop;
@@ -1032,7 +1127,7 @@ void filterMinLrt(bgl &d,float minLrt){
     fprintf(stderr,"Please supply number of individauls file: -Nname");
     info();
   }
-  // reading initial Qs - matrix of Qs - change to vector
+  // reading nInd
   readDouble1d(N,nPop,Nname);
    
   //update the global stuff NOW
@@ -1043,32 +1138,47 @@ void filterMinLrt(bgl &d,float minLrt){
 
   //////////////////////////////////////// em ///////////////////////////////////  
   //below is the main looping trhought the iterations.
-  // we have 4 possible ways, threading/nothreading line/noline
+  // we have 4 possible ways, unAdjusted/Adjusted basic EM/Accelerated EM
   int nit;
   double likeLast= lold;
-  for(nit=1;SIG_COND&& nit<maxIter;nit++) { 
-    if(method==0){
-      emEmil(Q, F, d.nSites, N, nPop,d.genos,F_new,Q_new,F_org);
-    } 
-    else{    
-      // lold is being created as a reference in function, so when changed in function
-      // also changed here
-      if(emAccelEmil(d, N, nPop, F, Q, F_new, Q_new,lold,F_org, a)==0){
-	if(errTol>errTolMin){
-	  errTol=errTol/5;
-	  if(errTol<errTolMin){
-	    errTol=errTolMin;
+  double lastQthres;
+  for(nit=1;SIG_COND and nit<maxIter;nit++) { 
+    if(doAdjust==0){
+      if(method==0){
+	emUnadjusted(Q, F, d.nSites, nPop,d.genos,Q_new);
+      } else{
+  if(emAccelUnadjusted(d, nPop, F, Q, Q_new,lold, a)==0){    
+	  if(errTol>errTolMin){
+	    errTol=errTol/5;
+	    if(errTol<errTolMin){
+	      errTol=errTolMin;
+	    }
 	  }
 	}
-	else{
-	  fprintf(stderr,"EM accelerated has reached convergence with tol %f\n",tol);
-	  break; //if we have achieved convergence
+      }
+    } else{   
+      if(method==0){
+	emEmil(Q, F, d.nSites, N, nPop,d.genos,F_new,Q_new,F_org);
+      } else{
+	
+	if(emAccelEmil(d, N, nPop, F, Q, F_new, Q_new,lold,F_org, a)==0){
+	  if(errTol>errTolMin){
+	    errTol=errTol/5;
+	    if(errTol<errTolMin){
+	      errTol=errTolMin;
+	    }
+	  }
+	  
+	  else{
+	    fprintf(stderr,"EM accelerated has reached convergence with tol %f\n",tol);
+	    break; //if we have achieved convergence
+	  }
 	}
       }
+
+      std::swap(F,F_new);
     }
     std::swap(Q,Q_new);
-    std::swap(F,F_new);
-
     if((nit%10)==0 ){ //stopping criteria
       double lik = likelihoodEmil(Q, F, d.nSites, nPop,d.genos);
       // thres is largest differense in admixture fractions
@@ -1079,8 +1189,15 @@ void filterMinLrt(bgl &d,float minLrt){
 	errTol=errTol/10;
 	if(errTol<errTolMin)
 	  errTol=errTolMin;
+      } else if(calcThresEmil(Q,Q_new,nPop) < Qtol and Qconv>0) {
+	fprintf(stderr,"Convergence achived because diffence in Q values less than %f\n",Qtol);
+	break;
+      } else if(fabs(calcThresEmil(Q,Q_new,nPop)-lastQthres)<1e-07){
+	fprintf(stderr,"Convergence achived because diffence in Q values less than %f\n",Qtol);
+	break;
       }
-      else if(std::abs(lik-likeLast) < tolLike50){
+
+      else if(std::abs(lik-likeLast) < tolLike50 and Qconv==0) {
 	fprintf(stderr,"Convergence achived becuase log likelihooditer difference for 50 iteraction is less than %f\n",tolLike50);
 	if(lik+likeLast<-1){
 	  fprintf(stderr,"Convergence achived because log likelihooditer difference was NEGATIVE\n");
@@ -1088,6 +1205,7 @@ void filterMinLrt(bgl &d,float minLrt){
 	break;
       }
       likeLast=lik; 
+      lastQthres=calcThresEmil(Q,Q_new,nPop);
     } 
   }
   lold = likelihoodEmil(Q, F, d.nSites, nPop,d.genos);
@@ -1101,7 +1219,7 @@ void filterMinLrt(bgl &d,float minLrt){
   fclose(fp);
 
   // only if certain flag
-  if(printFreq!=0){
+  if(printFreq>0){
     gzFile fpGz=openFileGz(outfiles,".fopt.gz");
     printDoubleGz(F,d.nSites,nPop,fpGz);
     gzclose(fpGz);
@@ -1109,7 +1227,9 @@ void filterMinLrt(bgl &d,float minLrt){
   
   //deallocate memory 
   dalloc(F_new,d.nSites);  
-  dalloc(F_org,d.nSites);
+  if(F_org!=NULL){
+    dalloc(F_org,d.nSites);
+  }
   delete [] N;
   delete [] Q_new;
 
@@ -1119,7 +1239,6 @@ void filterMinLrt(bgl &d,float minLrt){
     dalloc(F,d.nSites);
   }
   if(Q!=a.Q_tmp){
-
     delete [] Q;
   }
 
