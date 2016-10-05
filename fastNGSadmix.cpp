@@ -1,9 +1,16 @@
 /*
   log:
   g++ fastNGSadmix.cpp -lz -lpthread  -O3 -o fastNGSadmix
-  
+
+  log: (with readplink function)
+  g++ fastNGSadmix.cpp readplink.c -lz -lpthread  -O3 -o fastNGSadmix
+
+
   debug:
   g++ fastNGSadmix.cpp -lz -lpthread -ggdb -O3 -o fastNGSadmix
+
+  debug: (with readplink function)
+  g++ fastNGSadmix.cpp readplink.c -lz -lpthread -ggdb -O3 -o fastNGSadmix
 
 */
  
@@ -23,7 +30,8 @@
 #include <signal.h>
 #include <vector>
 #include <sys/stat.h>
-
+// not really necessary any longer
+//#include "readplink.h"
 
 //This is taken from here:
 //http://blog.albertarmea.com/post/47089939939/using-pthread-barrier-on-mac-os-x
@@ -55,6 +63,8 @@ double errTolMin=1e-9;
 double errTolStart=0.1;
 double errTol=errTolStart;//frequencies and admixture coef cannot be less than this or more than 1-this
 double misTol=0.05;
+// for reading in plink files, so that GL has no 0 values
+double seqError=1e-04;
 
 
 double **allocDouble(size_t x,size_t y){
@@ -317,6 +327,36 @@ typedef struct{
   float *mafs;
 }bgl;
 
+
+
+bgl allocBeagle(int nSites){
+  bgl b;
+
+  b.nSites = nSites;
+  b.major = new char[nSites];
+  b.minor = new char[nSites];
+  b.ids = new char*[nSites];
+  b.nInd = 1;
+  b.genos= allocDouble(nSites,3);
+  b.keeps = new char*[nSites]; // array nSites x nInd 0 if missing info
+  b.keepInd = new int[nSites];
+  b.mafs = new float[nSites];
+
+  for(int s=0;SIG_COND&& (s<nSites);s++){
+    b.ids[s] = strdup("0");
+    b.major[s] = '0';
+    b.minor[s] = '0';
+    b.keeps[s] = strdup("0");
+    b.keepInd[s] = 0;
+    b.mafs[s] = 0.0;
+  
+    for(int i=0;i<3;i++){
+      b.genos[s][i] = seqError;
+    }
+  }
+  return(b);
+} 
+      
 //utility function for cleaning up out datastruct
 void dallocBeagle(bgl &b){
   for(int i=0;i<b.nSites;i++){
@@ -394,9 +434,9 @@ bgl readBeagle(const char* fname) {
   //then loop over the vector and parsing every line
   for(int s=0;SIG_COND&& (s<ret.nSites);s++){
     ret.ids[s] = strdup(strtok(tmp[s],delims));
-    ret.major[s] =strtok(NULL,delims)[0];
-    ret.minor[s] =strtok(NULL,delims)[0];
-    ret.genos[s]= new double[3*ret.nInd];
+    ret.major[s] = strtok(NULL,delims)[0];
+    ret.minor[s] = strtok(NULL,delims)[0];
+    ret.genos[s] = new double[3*ret.nInd];
     for(int i=0;i<ret.nInd*3;i++){
       ret.genos[s][i] = atof(strtok(NULL,delims));
       if(ret.genos[s][i]<0){
@@ -470,6 +510,33 @@ void readDouble(double **d,int x,int y,const char*fname,int neg){
   }
   fclose(fp);
 }
+
+
+/* function to read plink data into bgl format, not necessary anymore
+bgl readPlinkToBeagle(char* plinkName) {
+  // denoting delimeters in file
+  // annoying that pointer to struct
+  plink* pl = readplink(plinkName);
+
+
+  // I do not think it gets that the beagle file has been create
+  // and therefore the d.genos is null
+  bgl b = allocBeagle(pl->y);
+  for(int i=0;i<pl->y;i++){
+    if(pl->d[0][i]==0){
+      b.genos[i][2]=1.0-seqError;
+    } else if(pl->d[0][i]==1){
+      b.genos[i][1]=1.0-seqError;
+    } else if(pl->d[0][i]==2){
+      b.genos[i][0]=1.0-seqError;
+    }
+  }
+  kill_plink(pl);
+  return(b);
+  
+
+} */
+
 
 void readDoubleGZ(double **d,int nSites,int nPop,const char*fname,int neg){
   fprintf(stderr,"opening : %s with x=%d y=%d\n",fname,nSites,nPop);
@@ -550,7 +617,9 @@ double likelihoodEmil(double* Q, double** F,int nSites, int nPop,double **genos)
     for(int k = 0; k < nPop; k++) {
       freq += (F[j][k])*Q[k];
     }
-    double f = 1 - freq;
+    // has to be like this, as I sort freqs
+    // prior to running this program
+    double f = freq;
     double sum = gg[0] * f * f;
     sum += gg[1]*2*f*(1-f);
     sum += gg[2]*(1-f)*(1-f);
@@ -566,9 +635,11 @@ void bootstrap(bgl dOrg, bgl &d, double** F_orgOrg, double** F_org, double** F, 
     for(int k = 0; k < nPop; k++) {
       F[j][k] = F_orgOrg[row][k];
       F_org[j][k] = F_orgOrg[row][k];
-      d.genos[j][k] = dOrg.genos[row][k];
-      // pointers getting same adress...
-      d.ids[j] = strdup(dOrg.ids[row]);
+      if(k<=2){
+	d.genos[j][k] = dOrg.genos[row][k];
+	// pointers getting same adress...
+	d.ids[j] = strdup(dOrg.ids[row]);
+      }
     }
   }
 }
@@ -865,6 +936,7 @@ void info(){
   fprintf(stderr,"\t-tol Tolerance for convergence\n"); 
   fprintf(stderr,"\t-dymBound Use dymamic boundaries (1: yes (default) 0: no)\n"); 
   fprintf(stderr,"\t-maxiter Maximum number of EM iterations\n"); 
+  fprintf(stderr,"\t-boot Number of bootstrapping iterations, default 50\n"); 
 
   fprintf(stderr,"Filtering\n"); 
   fprintf(stderr,"\t-minMaf Minimum minor allele frequency - does not really work!\n"); 
@@ -981,6 +1053,8 @@ void filterMinMaf(bgl &d,float minMaf, int* &badMaf){
   int doAdjust = 1;
   float minMaf =0.00;
   const char* lname = NULL;
+  // is this an issue that it is not const??
+  char* plinkName = NULL;
   const char* fname = NULL;
   const char* qname = NULL;
   const char* Nname = NULL;
@@ -997,6 +1071,7 @@ void filterMinMaf(bgl &d,float minMaf, int* &badMaf){
   while(*argv){
     // GL in the shape of beagle file
     if(strcmp(*argv,"-likes")==0 || strcmp(*argv,"-l")==0) lname=*++argv; //name / char arrays
+    else if(strcmp(*argv,"-plink")==0 || strcmp(*argv,"-p")==0) plinkName=*++argv; 
     // probably will need this, implicitly in the freqs file, by default 3
     else if(strcmp(*argv,"-K")==0) nPop=atoi(*++argv); 
     // would also need number of individuals in each ref category
@@ -1042,12 +1117,12 @@ void filterMinMaf(bgl &d,float minMaf, int* &badMaf){
 
 
   //check that non optional options have been used. 
-  if(lname==NULL){
-    fprintf(stderr,"Please supply beagle file: -likes");
+  if(lname==NULL and plinkName==NULL){
+    fprintf(stderr,"Please supply either beagle or plink input file: -likes or -plink");
     info();
   }
   if(outfiles==NULL){
-    fprintf(stderr,"Will use beagle fname as prefix for output\n");
+    fprintf(stderr,"Will use beagle/plink fname as prefix for output\n");
     outfiles=lname;
   }
 
@@ -1104,13 +1179,27 @@ void filterMinMaf(bgl &d,float minMaf, int* &badMaf){
 
   //read BEAGLE likelihood file  
   // made into object to give it additional info
-  bgl d=readBeagle(lname);
-  // for bootstrapping from
-  bgl dOrg=readBeagle(lname);
+  bgl d;
+  bgl dOrg;
+
+  if(lname!=NULL){
+    d=readBeagle(lname);
+    dOrg=readBeagle(lname);
+  } else {
+    info();
+  }
+   
   fprintf(stderr,"Input file has dim: nsites=%d nind=%d\n",d.nSites,d.nInd);
   fprintf(flog,"Input file has dim: nsites=%d nind=%d\n",d.nSites,d.nInd);
 
+  // START HERE
   // in order to have same sites in freq file
+  // the genotypes should be read in and converted to GL
+  // see README for details on how to do this
+  // should be flipped in Rscript
+  // it seems ADMIXTURE output - has diff direction of freqs than plink
+  // do some function that reads plink and converts to GL
+ 
 
 
   // filter sites based on MAF - 
@@ -1138,8 +1227,14 @@ void filterMinMaf(bgl &d,float minMaf, int* &badMaf){
 
   //get start values
   readDoubleGZ(F,d.nSites,nPop,fname,0);
-  readDoubleGZ(F_org,d.nSites,nPop,fname,0);
-  readDoubleGZ(F_orgOrg,d.nSites,nPop,fname,0);
+  
+  for(int i=0;i<d.nSites;i++){
+    for(int k=0;k<nPop;k++){
+      F_org[i][k]= F[i][k];
+      F_orgOrg[i][k]= F[i][k];
+    }
+     
+  }
 
   // because has to have value for normal data
   // and then nBoot bootstrapped values
@@ -1174,10 +1269,12 @@ void filterMinMaf(bgl &d,float minMaf, int* &badMaf){
   }
   // reading nInd
   readDouble1d(N,nPop,Nname);
+
    
   //update the global stuff NOW
   //update the internal stuff in the pars for the threading
   double lold = likelihoodEmil(Q[0], F, d.nSites, nPop,d.genos);
+  
   fprintf(stderr,"iter[start] like is=%f\n",lold);
 
   //////////////////////////////////////// em ///////////////////////////////////  
