@@ -1329,8 +1329,15 @@ void filterMinMaf(bgl &d,float minMaf, int* &badMaf){
 	// thres is largest differense in admixture fractions
 	if(b==0){
 	  fprintf(stderr,"iter[%d] like is=%f thres=%f\n",nit,lik,calcThresEmil(Q[b],Q_new[b],nPop));
-	  fprintf(stderr,"iter[%d] diff in likelihood is=%f\t",nit,std::abs(lik-likeLast));      
-	  fprintf(stderr,"iter[%d] Q is=%f, %f, %f\t",nit,Q[b][0],Q[b][1],Q[b][2]);      
+	  fprintf(stderr,"iter[%d] diff in likelihood is=%f\t",nit,std::abs(lik-likeLast));
+	  fprintf(stderr,"iter[%d] ",nit);
+	  for(int i=0;i<nPop;i++){
+
+	    fprintf(stderr,"Q is=%f, ",Q[b][i]);      
+	  }
+	  fprintf(stderr,"\t");      
+
+
 	}
 	if(errTol>errTolMin){
 	  errTol=errTol/10;
@@ -1354,7 +1361,7 @@ void filterMinMaf(bgl &d,float minMaf, int* &badMaf){
 	  }
 	  if(lik+likeLast<-1){
 	    if(b==0){
-	      fprintf(stderr,"Convergence achived because log likelihooditer difference was NEGATIVE\n");
+	      fprintf(stderr,"Convergence achived because log likelihood difference was NEGATIVE\n");
 	    }
 	  }
 	  break;
