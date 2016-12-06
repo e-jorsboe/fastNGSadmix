@@ -59,9 +59,9 @@
 char **keeps=NULL;
 #define LENS 100000 //this is the max number of bytes perline, should make bigger
 int SIG_COND =1;//if we catch signal then quit program nicely
-double tol=1e-5; //stopping criteria
+double tol=1e-7; //stopping criteria
 
-
+double maxAlpha = 30.0;
 double errTolMin=1e-5;
 double errTolStart=0.05;
 double errTol=errTolStart;//frequencies and admixture coef cannot be less than this or more than 1-this
@@ -408,14 +408,15 @@ typedef struct{
   char *A1;
   double **freqs;
   int refSites;
+  char **populations;
   // has map of column to keep in ref for calculations
   // is coded so key is old column number
   // value is new column number - 1 (cause has to be above 0)
   std::map <int,int> colsToKeep;
-  
+  std::map <char *,int,cmp_char> popsToKeep;
 }refPanel;
 
-refPanel allocRefPanel(int nSites, int refPops){
+refPanel allocRefPanel(int nSites, int refPops, int nPop){
   refPanel ref;
 
   ref.refSites = nSites;
@@ -425,7 +426,7 @@ refPanel allocRefPanel(int nSites, int refPops){
   ref.pos = new int[nSites];
 
   ref.name = new char*[nSites];
-  
+  ref.populations = new char*[nPop];
   ref.A0 = new char[nSites];
   ref.A1 = new char[nSites];
   ref.freqs= allocDouble(nSites,refPops);
@@ -436,6 +437,7 @@ refPanel allocRefPanel(int nSites, int refPops){
     ref.chr[s] = 0;
     ref.pos[s] = 0;
     ref.name[s] = strdup("0");
+    ref.populations[s] = strdup("0");
     ref.A0[s] = '0';
     ref.A1[s] = '0';
   
@@ -446,11 +448,16 @@ refPanel allocRefPanel(int nSites, int refPops){
   return(ref);
 } 
 
-void dallocRefPanel(refPanel &ref){
+void dallocRefPanel(refPanel &ref, int nPop){
   for(int i=0;i<ref.refSites;i++){
     delete [] ref.freqs[i];
     free(ref.id[i]);
     free(ref.name[i]);
+    
+    
+  }
+  for(int j=0;j<nPop;j++){
+    free(ref.populations[j]);
   }
   delete [] ref.chr;
   delete [] ref.pos;
@@ -458,6 +465,7 @@ void dallocRefPanel(refPanel &ref){
   delete [] ref.A1;
   delete [] ref.freqs;
   delete [] ref.name;
+  delete [] ref.populations;
   delete [] ref.id;
 }
 
@@ -522,8 +530,9 @@ bgl readBeagle(const char* fname) {
   strtok(buf,delims);
   int ncols=1;
   // reading first line in order to see nCol
-  while(strtok(NULL,delims))
+  while(strtok(NULL,delims)){
     ncols++;
+  }
   if(0!=(ncols-3) %3 ){
     fprintf(stderr,"ncols=%d\n",ncols);
     exit(0);
@@ -680,10 +689,12 @@ refPanel readRefPanel(const char* fname, bgl &b, std::map <char*,int,cmp_char> &
   // while still some left of string from file
   while(gzgets(fp,buf,LENS)){
     // duplicates string and puts it into tmp vector
-    tmp.push_back(strdup(buf));
-    
+    tmp.push_back(strdup(buf));    
   }
-
+  // copy first line into buffer, as empty now on some systems
+  // Copies the values of num bytes from the location pointed to by source directly to the memory block pointed to by destination.
+  memcpy(buf,tmp[0],strlen(tmp[0]));//tsk
+  
   // number of sites in original ref
   int totalSites = tmp.size();
   fprintf(stderr,"Ref has this many sites %i\n",totalSites);
@@ -692,8 +703,9 @@ refPanel readRefPanel(const char* fname, bgl &b, std::map <char*,int,cmp_char> &
   strtok(buf,delims);
   int ncols=1;
   // reading first line in order to see nCol
-  while(strtok(NULL,delims))
+  while(strtok(NULL,delims)){
     ncols++;
+  }
   if(ncols<7){
     // has to have at least 7 columns 
     fprintf(stderr,"Too few cols, ncols=%d\n",ncols);
@@ -701,7 +713,9 @@ refPanel readRefPanel(const char* fname, bgl &b, std::map <char*,int,cmp_char> &
   }
 
   // for which columns to keep
-  std::map<int,int> toKeep;
+
+  ref.populations = new char*[nPop];
+  
   // keep track of which original column it is
   int orgCol = 0;
   // keeps track of which new column (index = newCol-1) 
@@ -717,8 +731,11 @@ refPanel readRefPanel(const char* fname, bgl &b, std::map <char*,int,cmp_char> &
       if(includedPops.count(columnID)>0 or includedPops.empty()){
 	// prints out which populations chosen
 	fprintf(stderr,"Chosen pop %s\n",columnID);
+
+	ref.populations[newCol-1] = strdup(columnID);
+ 	ref.popsToKeep[columnID] = newCol;
 	// so that can translate from org (0 first freq column) to new column
-	toKeep[orgCol-7] = newCol;
+	ref.colsToKeep[orgCol-7] = newCol;
 	newCol++;
       }
     }
@@ -740,7 +757,7 @@ refPanel readRefPanel(const char* fname, bgl &b, std::map <char*,int,cmp_char> &
   ref.A1 = new char[b.nSites];
   ref.freqs = new double*[b.nSites];
   ref.refSites = b.nSites;
-  ref.colsToKeep = toKeep;
+
   
   // for keeping track of which index in new ref with
   // same number sites as in Beagle input
@@ -767,25 +784,26 @@ refPanel readRefPanel(const char* fname, bgl &b, std::map <char*,int,cmp_char> &
     // ref has A,C,G,T alleles
     ref.A0[refIndex] = strtok(NULL,delims)[0];
     ref.A1[refIndex] = strtok(NULL,delims)[0];
-    ref.freqs[refIndex] = new double[toKeep.size()];    
+    ref.freqs[refIndex] = new double[ref.colsToKeep.size()];    
 
     //    reading in ref freqs
     for(int i=0;i<(ncols-6);i++){
     
       // check if org column to keep and thereby pop to keep in ref
-      if(toKeep.count(i)>0){
+      if(ref.colsToKeep.count(i)>0){
 	// if bgl rs1 A B GL(AA) GL(AB) GL(BB) Then ref 1 1 rs1 B A 1-f(B)
+	// minor is last allele in beagle file
 	if(ref.A0[refIndex]==b.minor[refIndex]){
 	  // new col has to be - 1 for right index, at least for looking up properly
-	  ref.freqs[refIndex][toKeep[i]-1] = 1-atof(strtok(NULL,delims));
+	  ref.freqs[refIndex][ref.colsToKeep[i]-1] = 1 - atof(strtok(NULL,delims));
 
 	} else{
-	  ref.freqs[refIndex][toKeep[i]-1] = atof(strtok(NULL,delims));
+	  ref.freqs[refIndex][ref.colsToKeep[i]-1] = atof(strtok(NULL,delims));
 	}
 	
-	if(ref.freqs[refIndex][toKeep[i]-1]<0){
+	if(ref.freqs[refIndex][ref.colsToKeep[i]-1]<0){
 	  fprintf(stderr,"Frequencies must be positive\n");
-	  fprintf(stderr,"site %d, pop %d, has value %f\n",s,i,ref.freqs[refIndex][toKeep[i]-1]);
+	  fprintf(stderr,"site %d, pop %d, has value %f\n",s,i,ref.freqs[refIndex][ref.colsToKeep[i]-1]);
 	  exit(0);
 	}
 
@@ -798,10 +816,16 @@ refPanel readRefPanel(const char* fname, bgl &b, std::map <char*,int,cmp_char> &
     // count up index of new freq with N input beagle sites
     // only here if site was included in new ref
     refIndex++;
+   
     free(tmp[s]);
             
   }
   fprintf(stderr,"SLOW?\n");
+
+   if(refIndex!=b.nSites){
+      fprintf(stderr,"Sites in beagle file there are not in reference panel, should be subset of ref panel!\n");
+      exit(0);
+    }
   // Here additional stuff is calculated from the likelihoods
   // this must be done again while filtering later in main
 
@@ -882,7 +906,7 @@ void readDoubleGZ(double **d,int nSites,int nPop,const char*fname,int neg){
 }
 
 // for reading number of individuals in each ref
-void readDouble1d(double *d,int nPop,const char*fname, std::map<int,int> &colsToKeep){
+void readDouble1d(double *d,int nPop,const char*fname, std::map<char*,int,cmp_char> &popsToKeep){
   fprintf(stderr,"opening : %s with nPop=%d\n",fname,nPop);
   const char*delims=" \n\t";
   FILE *fp = NULL;
@@ -892,43 +916,93 @@ void readDouble1d(double *d,int nPop,const char*fname, std::map<int,int> &colsTo
   }
   int lens=1000000 ;
   char buf[lens];
-  if(NULL==fgets(buf,lens,fp)){
-    fprintf(stderr,"Increase buffer\n");
-    exit(0);
+   
+  std::vector<char*> tmp;
+  std::map<int,int> toKeep;
+  // while still some left of string from file
+  while(fgets(buf,lens,fp)){
+    // duplicates string and puts it into tmp vector
+
+    tmp.push_back(strdup(buf));
+    // puts id of all sites in map for fast lookup
   }
   // going to all values ind nInd file
-  char * tmp = strtok(buf,delims);
+  char * word = strtok(strdup(tmp[0]),delims);
   // keeps track of which value at in nInd file
-  int j = 0;
-  while(tmp!=NULL){
-    // if one of population selected
-    // again colsToKeep has org column converts to new col - 1
-    if(colsToKeep.count(j)>0){
-      d[colsToKeep[j]-1] = atof(tmp);
-    } 
-    j++;
-    tmp = strtok(NULL,delims);
+    
+  int orgCol = 0;
+  int newCol = 1;
+  
+  while(word!=NULL){
+
+    if(popsToKeep.count(word)>0){
+      // because map index has to start at 1 for count method to work
+      toKeep[orgCol] = newCol;
+      newCol++;
+    }
+    word = strtok(NULL,delims);
+    orgCol++;
   }
+  
+  word = strtok(strdup(tmp[1]),delims);
+  int index = 0;
+  while(word!=NULL){
+    if(toKeep.count(index)>0){
+      // because map index has to start at 1 for count method to work
+      d[toKeep[index]-1] = atof(word);
+    }
+    word = strtok(NULL,delims);
+    index++;
+  }
+    
   fclose(fp);
 }
 
-void printDouble(double **ret,size_t x,size_t y,FILE *fp){
+void printDouble(double **ret,size_t x,size_t y, int highestLike, char** populations ,FILE *fp){
   for(size_t i=0;i<x;i++){
-    for(size_t j=0;j<y;j++)
-      fprintf(fp,"%.20f ",ret[i][j]);
-    fprintf(fp,"\n");
+    fprintf(stderr,"i: %zi, like: %i\n",i,highestLike);
+    if(i==0){
+      for(size_t j=0;j<y;j++){
+	fprintf(fp,"%s ",populations[j]);
+      }
+      fprintf(fp,"\n");
+    }
+    if(i<10 and i == highestLike){
+      for(size_t j=0;j<y;j++){
+	fprintf(fp,"%.4f ",ret[i][j]);
+      }
+      fprintf(fp,"\n");
+    } else if(i>=10){
+      for(size_t j=0;j<y;j++){
+	fprintf(fp,"%.4f ",ret[i][j]);
+      }
+      fprintf(fp,"\n");
+    }
   }
+  
 }
 
-void printDoubleGz(double **ret,size_t x,size_t y,gzFile fp){
-  for(size_t i=0;i<x;i++){
-    for(size_t j=0;j<y;j++)
-      gzprintf(fp,"%.20f ",ret[i][j]);
+void printDoubleGz(double **ret,size_t x,size_t y, char** populations ,gzFile fp){
+
+ for(size_t i=0;i<x;i++){
+    if(i==0){
+      for(size_t j=0;j<y;j++){
+	gzprintf(fp,"%s ",populations[j]);
+      }
+      gzprintf(fp,"\n");
+    }
+    for(size_t j=0;j<y;j++){
+      gzprintf(fp,"%.4f ",ret[i][j]);
+    }
     gzprintf(fp,"\n");
   }
 }
 
+
 double likelihoodEmil(double* Q, double** F,int nSites, int nPop,double **genos){
+  //  map2domainFEmil(F, nSites, nPop);
+  //  map2domainQEmil(Q,nPop);
+
   double prod_ind = 0.0;
   for(int j = 0; j < nSites; j++) {
     double *gg = genos[j];
@@ -1099,7 +1173,7 @@ int emAccelUnadjusted(const bgl &d, int nPop, double **F,double *Q,double *Q_new
   double stepMin =1;
   double stepMax0 = 1;
   static double stepMax=stepMax0;
-  double mstep=4;
+  double mstep=2;
   double objfnInc=1;
   // first EM run
   emUnadjusted(Q, F, d.nSites, nPop,d.genos, a.Q_em1);
@@ -1131,10 +1205,11 @@ int emAccelUnadjusted(const bgl &d, int nPop, double **F,double *Q,double *Q_new
   alpha = std::max(stepMin,std::min(stepMax,alpha));
   // changed so that alpha does not go above 10
   // got inaccurate results sometimes if to big alpha jumps
-  alpha = std::min(alpha,10.0);  
+  alpha = std::min(alpha,maxAlpha);  
   // update with the linear combination
   // updates F with new values via alpha - where alpha controls rate of change
   // check that F has no entries of 0
+  
   for(size_t i=0;i<nPop;i++){
     // because alpha pos in code, does not need minus -(-alpha) = alpha
     Q_new[i] = Q[i]+2*alpha*a.Q_diff1[i]+alpha*alpha*a.Q_diff3[i];
@@ -1168,6 +1243,8 @@ int emAccelEmil(const bgl &d, double* nInd, int nPop, double **F,double *Q,doubl
   static double stepMax=stepMax0;
   double mstep=4;
   double objfnInc=1;
+  
+  double lold2 = likelihoodEmil(Q, F, d.nSites, nPop,d.genos);
   // first EM run
   emEmil(Q, F, d.nSites, nInd, nPop,d.genos, a.F_em1, a.Q_em1, F_org);
   // diff between 0 and 1 assigned to diff1
@@ -1205,12 +1282,19 @@ int emAccelEmil(const bgl &d, double* nInd, int nPop, double **F,double *Q,doubl
   double sv2 = sumSquare1dEmil(a.Q_diff3,nPop);
   // does not have to make alpha negative because changed accordingly in equations
   double alpha = sqrt(sr2/sv2);
+  fprintf(stderr,"alpha: %f\n",alpha);
   // makes sure alpha does not go below 1 and above stepMax
   alpha = std::max(stepMin,std::min(stepMax,alpha));
   // changed so that alpha does not go above 10
   // got inaccurate results sometimes if to big alpha jumps
-  alpha = std::min(alpha,10.0); 
+  
+
+  //alpha = std::min(alpha,maxAlpha); 
+
+
+
   // updates F with new values via alpha - where alpha controls rate of change
+  fprintf(stderr,"alpha: %f %f\n",alpha,stepMax);
   for(size_t i=0;i<d.nSites;i++){
     for(size_t j=0;j<nPop;j++){
       // (*F_new)[i][j] wtf??
@@ -1225,8 +1309,11 @@ int emAccelEmil(const bgl &d, double* nInd, int nPop, double **F,double *Q,doubl
     Q_new[i] = Q[i]+2*alpha*a.Q_diff1[i]+alpha*alpha*a.Q_diff3[i];
     a.Q_tmp[i] = 1.0;
   }
-  double** tmpAdrF=a.F_tmp;
-  double* tmpAdrQ=a.Q_tmp;
+
+  fprintf(stderr,"Pointers: %p %p %p %p %p %p\n",a.Q_tmp,a.F_tmp,Q_new,F_new,Q,F);
+  
+  double** tmpAdrF = a.F_tmp;
+  double* tmpAdrQ = a.Q_tmp;
   map2domainQEmil(Q_new,nPop);
   // if alpha not too close (0.01 close) to 1 
   if (fabs(alpha - 1) > 0.01){
@@ -1238,8 +1325,35 @@ int emAccelEmil(const bgl &d, double* nInd, int nPop, double **F,double *Q,doubl
     // in order to avoid a.Q_tmp or a.F_tmp pointing to Q and F
     a.Q_tmp=tmpAdrQ;
     a.F_tmp=tmpAdrF;
+    fprintf(stderr,"Pointers: %p %p %p %p %p %p\n",a.Q_tmp,a.F_tmp,Q_new,F_new,Q,F);
+    //if (alpha == stepMax){
+      //  stepMax = std::max(stepMax0, stepMax/2);
+      //}
+
   }
-  double lnew =0;
+  double lnew = likelihoodEmil(Q_new, F_new, d.nSites, nPop,d.genos);
+  fprintf(stderr,"likes %f %f\n", lold2,lnew);
+  
+  if (lnew < lold2) {
+    fprintf(stderr,"bad guess in %s\n", __FUNCTION__);
+    //    *Q_new = Q_em2;
+    //    *F_new =F_em2;
+    if (alpha == stepMax){
+      stepMax = std::max(stepMax0, stepMax/mstep);
+    }
+    alpha = 1;
+  }
+
+  if (std::abs(lnew - lold)<0.0001) {
+    fprintf(stderr,"bad guess in %s\n", __FUNCTION__);
+    //    *Q_new = Q_em2;
+    //    *F_new =F_em2;
+    if (alpha == stepMax){
+      stepMax = std::max(stepMax0, stepMax/mstep);
+    }
+    alpha = 1;
+  } 
+  fprintf(stderr,"alpha %f\n", alpha);
   if (alpha == stepMax) {
     stepMax = mstep*stepMax;
   }
@@ -1247,6 +1361,192 @@ int emAccelEmil(const bgl &d, double* nInd, int nPop, double **F,double *Q,doubl
   return 1;
 }
 
+
+// based on squarem1, from SQUAREM R package, by RAVI VARADHAN and CHRISTOPHE ROLAND Scandinavian Journal of Statistics, Vol. 35: 335–353, 2008
+int emAccelEmilV2(const bgl &d, double* nInd, int nPop, double** F,double* Q,double** &F_new,double* &Q_new,double &lold, double** F_org, accFQ &a){
+  //maybe these should be usersettable?
+  double stepMin =1;
+  double stepMax0 = 1;
+  static double stepMax=stepMax0;
+  double mstep=4;
+  double objfnInc=1;
+
+  //we make these huge structures static such that we just allocate them the first time
+  // static means they are NOT dynamically deallocated when function is over
+  // way to declare variables if you want them to exist after function
+  static double **F_em1 = NULL;
+  static double *Q_em1 = NULL;
+  static double **F_diff1 = NULL;
+  static double *Q_diff1 = NULL;
+  static double **F_em2 = NULL;
+  static double *Q_em2 = NULL;
+  static double **F_diff2 = NULL;
+  static double *Q_diff2 = NULL;
+  static double **F_diff3 = NULL;
+  static double *Q_diff3 = NULL;
+  static double **F_tmp = NULL;
+  static double *Q_tmp = NULL;
+
+  if(F_em1==NULL){
+    fprintf(stderr,"I AM HERE!!!!!!!!!!\n");
+    F_em1 = allocDouble(d.nSites,nPop);
+    Q_em1 = new double[nPop];
+    F_diff1 = allocDouble(d.nSites,nPop);
+    Q_diff1 = new double[nPop];
+    F_em2 = allocDouble(d.nSites,nPop);
+    Q_em2 = new double[nPop];
+    F_diff2 = allocDouble(d.nSites,nPop);
+    Q_diff2 = new double[nPop];
+    F_diff3 = allocDouble(d.nSites,nPop);
+    Q_diff3 = new double[nPop];
+    F_tmp = allocDouble(d.nSites,nPop);
+    Q_tmp = new double[nPop];
+
+  }
+  //should cleanup and exit
+  if(F==NULL){
+    dalloc(F_em1,d.nSites);
+    dalloc(F_em2,d.nSites);
+    dalloc(F_diff1,d.nSites);
+    dalloc(F_diff2,d.nSites);
+    dalloc(F_diff3,d.nSites);
+    dalloc(F_tmp,d.nSites);
+    delete [] Q_em1;
+    delete [] Q_em2;
+    delete [] Q_diff1;
+    delete [] Q_diff2;
+    delete [] Q_diff3;
+    delete [] Q_tmp;
+    return 0;
+}
+  
+  fprintf(stderr,"F_new %p\n", F_new);
+  fprintf(stderr,"F_tmp %p\n", F_tmp);
+  fprintf(stderr,"F_em2 %p\n", F_em2);
+  fprintf(stderr,"Q_tmp %p\n", Q_tmp);
+
+  fprintf(stderr,"F inside (old,new): %p, %p\n",F,F_new);
+   
+  // first EM run
+  emEmil(Q, F, d.nSites, nInd, nPop,d.genos, F_em1, Q_em1, F_org);
+  // diff between 0 and 1 assigned to diff1
+  minusEmil(F_em1,F,d.nSites,nPop,F_diff1);
+  minus1dEmil(Q_em1,Q,nPop,Q_diff1);
+  // calculates "norm" of F_diff1 and Q_diff1 and sums them
+  //  double sr2 = sumSquareEmil(F_diff1,d.nSites,nPop)+sumSquare1dEmil(Q_diff1,nPop);
+  // SQUAREM also only bases theta on Q, I do not change F very much - this is faster
+  double sr2 = sumSquare1dEmil(Q_diff1,nPop);
+  // checks if convergence
+  // tol is 1e-05 - line 62
+  if(sqrt(sr2)<tol){
+    
+    std::fill(Q_em1,Q_em1+nPop,0);  
+    return 0;
+    
+    //break;
+  }
+  // second EM run
+  emEmil(Q_em1, F_em1, d.nSites, nInd, nPop,d.genos, F_em2, Q_em2, F_org);
+  // diff between 1 and 2 assigned to diff2  
+  minusEmil(F_em2,F_em1,d.nSites,nPop,F_diff2);
+  minus1dEmil(Q_em2,Q_em1,nPop,Q_diff2);
+  // calculates "norm" of F_diff2 and Q_diff2 and sums them 
+  //double sq2 = sumSquareEmil(F_diff2,d.nSites,nPop)+sumSquare1dEmil(Q_diff2,nPop);
+  // SQUAREM also only bases theta on Q, I do not change F very much - this is faster
+  double sq2 = sumSquare1dEmil(Q_diff2,nPop);
+  // checks if convergence - a second time
+  // tol is 1e-05 - line 62
+  if(sqrt(sq2)<tol){
+  
+ 
+    return 0;
+    //    break;
+  }
+  // diff between diff1 and diff2
+  minusEmil(F_diff2,F_diff1,d.nSites,nPop,F_diff3);
+  minus1dEmil(Q_diff2,Q_diff1,nPop,Q_diff3);
+  // WHY NOT SQ2 - because it is v = diff2 - diff1 actually
+  //double sv2 = sumSquareEmil(F_diff3,d.nSites,nPop)+sumSquare1dEmil(Q_diff3,nPop);
+  // SQUAREM also only bases theta on Q, I do not change F very much - this is faster
+  double sv2 = sumSquare1dEmil(Q_diff3,nPop);
+  // does not have to make alpha negative because changed accordingly in equations
+  double alpha = sqrt(sr2/sv2);
+  fprintf(stderr,"alpha: %f\n",alpha);
+  // makes sure alpha does not go below 1 and above stepMax
+  alpha = std::max(stepMin,std::min(stepMax,alpha));
+  // changed so that alpha does not go above 10
+  // got inaccurate results sometimes if to big alpha jumps
+ 
+
+  //alpha = std::min(alpha,maxAlpha); 
+  // updates F with new values via alpha - where alpha controls rate of change
+  fprintf(stderr,"alpha: %f %f\n",alpha,stepMax);
+  for(size_t i=0;i<d.nSites;i++){
+    for(size_t j=0;j<nPop;j++){
+      // based on ngsAdmix approach
+      F_new[i][j] = F[i][j]+2*alpha*F_diff1[i][j]+alpha*alpha*F_diff3[i][j];
+      F_tmp[i][j] = 1.0;
+    }
+  }
+  // check that F has no entries of 0
+  map2domainFEmil(F_new,d.nSites,nPop);
+  for(size_t i=0;i<nPop;i++){
+    // because alpha pos in code, does not need minus -(-alpha) = alpha
+    Q_new[i] = Q[i]+2*alpha*Q_diff1[i]+alpha*alpha*Q_diff3[i];
+    Q_tmp[i] = 1.0;
+  }
+  
+  //double** tmpAdrF = F_tmp;
+  //double* tmpAdrQ = Q_tmp;
+  map2domainQEmil(Q_new,nPop);
+  // if alpha not too close (0.01 close) to 1 
+  if (fabs(alpha - 1) > 0.01){
+    fprintf(stderr,"SWAP1 \n");
+    // we estimate new Q and F, with our inferred Q and F via alpha
+    emEmil(Q_new, F_new, d.nSites, nInd, nPop,d.genos,F_tmp,Q_tmp,F_org);
+    // assign value of Q_tmp and F_tmp to Q_new and F_new
+    std::swap(Q_new,Q_tmp);
+    std::swap(F_new,F_tmp);
+    // in order to avoid Q_tmp or F_tmp pointing to Q and F
+    //Q_tmp=tmpAdrQ;
+    //    F_tmp=tmpAdrF;
+    //if (alpha == stepMax){
+      //  stepMax = std::max(stepMax0, stepMax/2);
+      //}
+
+  }
+  //  double lnew = likelihoodEmil(Q_new, F_org, d.nSites, nPop,d.genos);
+  double lnew = likelihoodEmil(Q_new, F_new, d.nSites, nPop,d.genos);
+  
+  if (lnew < (lold - objfnInc)) {
+    fprintf(stderr,"SWAP2 \n");
+    
+    //    *Q_new = Q_em2;
+    //    *F_new =F_em2;
+    std::swap(Q_new,Q_em2);
+    std::swap(F_new,F_em2);
+    //    lnew = likelihoodEmil(Q_new,  F_org, d.nSites, nPop,d.genos);
+    lnew = likelihoodEmil(Q_new,  F_new, d.nSites, nPop,d.genos);
+    if (alpha == stepMax){
+      stepMax = std::max(stepMax0, stepMax/mstep);
+    } 
+    
+    alpha = 1;
+  }
+
+  fprintf(stderr,"F_new %p\n", F_new);
+  fprintf(stderr,"F_tmp %p\n", F_tmp);
+  fprintf(stderr,"F_em2 %p\n", F_em2);
+  fprintf(stderr,"Q_tmp %p\n", Q_tmp);
+
+fprintf(stderr,"alpha %f\n", alpha);
+if (alpha == stepMax) {
+  stepMax = mstep*stepMax;
+ }
+
+lold=lnew;
+return 1;
+}
 
 void info(){
   
@@ -1296,12 +1596,12 @@ void handler(int s) {
   SIG_COND=0;
 }
 
-float calcThresEmil(double *d1,double *d2, int x){
+double calcThresEmil(double *d1,double *d2, int x){
   // finds the largest difference between 2 arrays
   // arrays has dimention x times y
-  float diff=0;
-  for(int i=0;i<x;i++){
-    if(fabs(d1[i]-d2[i])>diff){
+  double diff=fabs(d1[0]-d2[0]);
+  for(int i=1;i<x;i++){
+    if(fabs(d1[i]-d2[i])<diff){
       diff=fabs(d1[i]-d2[i]);
     }
   }
@@ -1404,7 +1704,7 @@ void filterMinMaf(bgl &d,float minMaf, int* &badMaf){
   int seed = time(NULL);
   // float tolLike50=0.1;
   float tolLike50=0.01; // changed by Emil
-  int nBoot = 50; // for bootstrapping
+  int nBoot = 0; // for bootstrapping
   int Qconv = 0;
   double Qtol = 0.001;
   // reading arguments
@@ -1516,9 +1816,6 @@ void filterMinMaf(bgl &d,float minMaf, int* &badMaf){
 
   errTolStart = errTolMin;
   errTol = errTolMin;
-
-  fprintf(stderr,"F %f %f\n",errTolStart,errTol);
-
     
   clock_t t = clock();//how long time does the run take
   time_t t2 = time(NULL);
@@ -1541,9 +1838,11 @@ void filterMinMaf(bgl &d,float minMaf, int* &badMaf){
 
   // to get only some populations in refPanel
   std::map <char*,int,cmp_char> includedPops;
-
+  
   // if pops are specified, reads which pops and construcs map with those
   if(pops!=NULL){
+
+   
     char* pops1 = strdup(pops);
     char* temp = strtok(pops1,",");
     while(temp!=NULL){
@@ -1559,7 +1858,9 @@ void filterMinMaf(bgl &d,float minMaf, int* &badMaf){
       info();
 
     }
-  } 
+  }
+  // to find out which version of C++
+  //fprintf(stderr,"V: [%ld] ", __cplusplus);
   
   // filter sites based on MAF - 
 
@@ -1576,14 +1877,14 @@ void filterMinMaf(bgl &d,float minMaf, int* &badMaf){
   refPanel ref;
   ref = readRefPanel(fname,d,includedPops,nPop);
   fprintf(stderr,"Done!\n");
-  
- 
+    
   //unknown parameters
   // we only have a vector of Qs and then a matrix of freqs
   // so allocates a an array of pointers, each pointing to a second array
   // this gives matrix like structure of F
   double **F = allocDouble(d.nSites,nPop);
   double **F_new = allocDouble(d.nSites,nPop);
+
   // F_org is for storing initial freqs from ref panel
   double **F_org = allocDouble(d.nSites,nPop);
   // for sampling from when doing bootstrap
@@ -1599,32 +1900,33 @@ void filterMinMaf(bgl &d,float minMaf, int* &badMaf){
     }
      
   }
-
-  // because has to have value for normal data
+ 
+  // because has to have 10 values for normal data, in order to have converge
   // and then nBoot bootstrapped values
-  double **Q = allocDouble(nBoot+1,nPop);
-  double **Q_new = allocDouble(nBoot+1,nPop);
-
+  double **Q = allocDouble(nBoot+10,nPop);
+  double **Q_new = allocDouble(nBoot+10,nPop);
+   
   double *N = new double[nPop];
 
   // putting in an intial guess 
-  double *sum = new double[nBoot+1];
+  double *sum = new double[nBoot+10];
   // nBoot + 1 rows
-  for(int j=0;j<=nBoot;j++){
+  for(int j=0;j<nBoot+10;j++){
     sum[j]=0;
     for(int k=0;k<nPop;k++){
-      Q[j][k]=1.0/nPop;
+      Q[j][k]=rand()*1.0/RAND_MAX;
       sum[j]+=Q[j][k];
     }
   }
   // nBoot + 1 rows
-  for(int j=0;j<=nBoot;j++){
+  for(int j=0;j<nBoot+10;j++){
     for(int k=0;k<nPop;k++) {
       // to make sure that proportions sum to 1
       Q[j][k] = Q[j][k]/sum[j]; 
       Q_new[j][k] = Q[j][k];
     }
   }
+ 
   delete [] sum;
 
   if(Nname==NULL){
@@ -1635,15 +1937,19 @@ void filterMinMaf(bgl &d,float minMaf, int* &badMaf){
 
   // reading nInd, where colsToKeep from ref specified
   // to read in the same columns as in ref
-  readDouble1d(N,nPop,Nname,ref.colsToKeep);
+  readDouble1d(N,nPop,Nname,ref.popsToKeep);
 
   for(int i=0;i<nPop;i++){
-    fprintf(stderr,"N = %f\n",N[i]); 
+    fprintf(stderr,"N = %f\n",N[i]);
+    fprintf(flog,"Chosen pop %s\n",ref.populations[i]);
   }
+
+  double* bestLike = new double[10];
+  int highestLike = 0;
    
   //update the global stuff NOW
   //update the internal stuff in the pars for the threading
-  double lold = likelihoodEmil(Q[0], F, d.nSites, nPop,d.genos);
+  double lold = likelihoodEmil(Q[0], F_org, d.nSites, nPop,d.genos);
   
   fprintf(stderr,"iter[start] like is=%f\n",lold);
 
@@ -1654,126 +1960,192 @@ void filterMinMaf(bgl &d,float minMaf, int* &badMaf){
   double likeLast = lold;
   double lastQthres = 0;
 
-
-  for(int b=0;SIG_COND and b<=nBoot;b++) { 
-    for(nit=1;SIG_COND and nit<maxIter;nit++) {
-      if(doAdjust==0){
-	if(method==0){
-	  emUnadjusted(Q[b], F, d.nSites, nPop,d.genos,Q_new[b]);
-	} else{
-	  emAccelUnadjusted(d, nPop, F, Q[b], Q_new[b],lold, a);
-      	}
-      } else{   
-	if(method==0){
-	  emEmil(Q[b], F, d.nSites, N, nPop,d.genos,F_new,Q_new[b],F_org);
-	} else{
-	  emAccelEmil(d, N, nPop, F, Q[b], F_new, Q_new[b],lold,F_org, a);
-	}
-	std::swap(F,F_new);
-      }
-
-      
-      std::swap(Q,Q_new);
-      if((nit%10)==0 ){ //stopping criteria
-	double lik = likelihoodEmil(Q[b], F, d.nSites, nPop,d.genos);
-	// thres is largest differense in admixture fractions
-		
-	if(b==0){
-	  fprintf(stderr,"iter[%d] like is=%f thres=%f\n",nit,lik,calcThresEmil(Q[b],Q_new[b],nPop));
-	  fprintf(stderr,"iter[%d] diff in likelihood is=%f\t",nit,std::abs(lik-likeLast));
-	  fprintf(stderr,"iter[%d] ",nit);
-	  for(int i=0;i<nPop;i++){
-
-	    fprintf(stderr,"Q is=%f, ",Q[b][i]);      
-	  }
-	  fprintf(stderr,"\t");      
-
-
-	}
-	if(calcThresEmil(Q[b],Q_new[b],nPop) < Qtol and Qconv>0) {
-	  if(b==0){
-	    fprintf(stderr,"Convergence achived because diffence in Q values less than %f\n",Qtol);
-	  }
-	  break;
-	} else if(fabs(calcThresEmil(Q[b],Q_new[b],nPop)-lastQthres)<1e-07){
-	  if(b==0){
-	    fprintf(stderr,"Convergence achived because diffence in Q values less than 1e-07\n");
-	  }
-	  break;
-	}
-	
-	else if(std::abs(lik-likeLast) < tolLike50 and Qconv==0) {
-	  if(b==0){
-	    fprintf(stderr,"Convergence achived becuase log likelihooditer difference for 50 iteraction is less than %f\n",tolLike50);
-	  }
-	  if(lik+likeLast<-1){
-	    if(b==0){
-	      fprintf(stderr,"Convergence achived because log likelihood difference was NEGATIVE\n");
-	    }
-	  }
-	  break;
-	}
-	likeLast=lik; 
-	lastQthres=calcThresEmil(Q[b],Q_new[b],nPop);
-      } 
-    }
-    // first run
-    if(b==0){
-      // nBoot + 1 rows
-      for(int j=1;j<=nBoot;j++){
-	for(int k=0;k<nPop;k++){
-	  //	  make first estimated Q starting guess for rest
-	  Q[j][k] = Q[0][k];
-	  Q_new[j][k] = Q[j][k];
+  // first 10 runs for converge with new Q starting point
+  // then nBoot new runs for bootstrapping with best Q starting point
+  for(int b=0;SIG_COND and b<(nBoot+10);b++) {
+    fprintf(stderr,"F is %f %f %f %f %f %f %f after \n",F[0][0],F[0][1],F[0][2],F[0][3],F[0][4],F[0][5],F[0][6]);
+      for(nit=1;SIG_COND and nit<maxIter;nit++) {	
+	if(doAdjust==0){
+	  if(method==0){
+	    emUnadjusted(Q[b], F, d.nSites, nPop,d.genos,Q_new[b]);
+	  } else{
 	  
+	    fprintf(stderr,"like before %f\n",lold);
+	    if(0==emAccelUnadjusted(d, nPop, F, Q[b], Q_new[b],lold, a)){
+	      bestLike[b] =   lold = likelihoodEmil(Q[b], F_org, d.nSites, nPop,d.genos);
+	      fprintf(stderr,"like after %f\n",lold);
+	      break;
+	    }
+	    lold = likelihoodEmil(Q[b], F_org, d.nSites, nPop,d.genos);
+	  }
+	} else{   
+	  if(method==0){
+	    emEmil(Q[b], F, d.nSites, N, nPop,d.genos,F_new,Q_new[b],F_org);
+	  } else{
+	    fprintf(stderr,"F outside (old,new): %p, %p\n",F,F_new);
+
+	    //lold = likelihoodEmil(Q[b], F_org, d.nSites, nPop,d.genos);
+	    fprintf(stderr,"like before %f\n",lold);
+	    if(0==emAccelEmilV2(d, N, nPop, F, Q[b], F_new, Q_new[b],lold,F_org, a)){
+	      bestLike[b] = likelihoodEmil(Q[b], F_new, d.nSites, nPop,d.genos);
+	      fprintf(stderr,"like after %f\n",lold);
+	      break;
+	    }
+	    lold = likelihoodEmil(Q[b], F_new, d.nSites, nPop,d.genos);
+	    fprintf(stderr,"F outside after function run (old,new): %p, %p\n",F,F_new);
+	  }
+	  std::swap(F,F_new);
+	}
+      	std::swap(Q,Q_new);
+
+	if((nit%10)==0 ){ //stopping criteria
+      	  // thres is largest differense in admixture fractions
+	  //fprintf(stderr,"delta Qs  %f last: %f\n",calcThresEmil(Q[b],Q_new[b],nPop),lastQthres);
+	  //	  double lik = likelihoodEmil(Q[b], F_org, d.nSites, nPop,d.genos);
+	  double lik = likelihoodEmil(Q[b], F, d.nSites, nPop,d.genos);
+	  if(b==0){
+	    fprintf(stderr,"iter[%d] last like is=%f thres=%f\t",nit,likeLast,calcThresEmil(Q[b],Q_new[b],nPop));
+	    fprintf(stderr,"iter[%d] like is=%f thres=%f\t",nit,lik,calcThresEmil(Q[b],Q_new[b],nPop));
+	    fprintf(stderr,"iter[%d] diff in likelihood is=%f\t",nit,std::abs(lik-likeLast));
+	    fprintf(stderr,"iter[%d] ",nit);
+	    for(int i=0;i<nPop;i++){	      
+	      fprintf(stderr,"Q is=%f, ",Q[b][i]);
+	      fprintf(stderr,"F is=%f, ",F[0][i]); 
+	    }
+	    fprintf(stderr,"\n");      
+	  }
+	  if(calcThresEmil(Q[b],Q_new[b],nPop) < Qtol and Qconv>0) {
+	    if(b==0){
+	      fprintf(stderr,"Convergence achived because diffence in Q values less than %f\n",Qtol);
+	    }
+	    if(b<10){
+	      bestLike[b] = lik;
+	    }
+  	    break;
+	  } else /* if(fabs(calcThresEmil(Q[b],Q_new[b],nPop)-lastQthres)<1e-07){
+	    fprintf(stderr,"delta Q %.20f\n",fabs(calcThresEmil(Q[b],Q_new[b],nPop)-lastQthres));
+	    if(b==0){
+	      fprintf(stderr,"Convergence achived because diffence in Q values less than 1e-07\n");
+	  }
+	    if(b<10){
+	      bestLike[b] = lik;
+	    }
+	    break;
+	    }
+	    else */ if(std::abs(lik-likeLast) < tol and Qconv==0) {
+	    if(b==0){
+	      fprintf(stderr,"Convergence achived becuase log likelihooditer difference is less than %f\n",tol);
+	    }
+	    if(lik-likeLast<0){
+	      if(b==0){
+		fprintf(stderr,"Convergence achived because log likelihood difference was NEGATIVE\n");
+	      }
+	    }
+	    if(b<10){
+	      bestLike[b] = lik;
+	    }
+	    break;
+	  }
+
+	}
+	// only calc when run 9, 19 , ... (as just before conv check)
+	if((nit%10)==9){
+	  likeLast = likelihoodEmil(Q[b], F, d.nSites, nPop,d.genos); 
+	  lastQthres = calcThresEmil(Q[b],Q_new[b],nPop);
 	}
       }
-      // same for GL input!!
-      std::swap(F,F_1stRun);
-    }
-    // F_orgOrg original F sampled from
-    bootstrap(dOrg,d,F_orgOrg,F_org,F,nPop); 
 
-    if(b>0){
-      fprintf(stderr,"At this bootstrapping: %i out of: %i\n",b,nBoot);
+      fprintf(stderr,"BOOM!\n");
+      
+      for(int i=0;i<d.nSites;i++){
+	for(int k=0;k<nPop;k++){
+	  // original ref panel freqs
+	  F[i][k] = F_orgOrg[i][k];
+	  F_new[i][k] = F_orgOrg[i][k];
+	}
+      }    
+      // first run
+      // nBoot + 1 rows
+      // to find the Q with lowest likelihood, after 10 first runs
+  if(b==9){
+    double highLike = 0;
+    for(int l=0;l<10;l++){
+      if(l==0){
+	highLike = bestLike[0];
+      }else{
+	if(highLike < bestLike[l]){
+	  highLike = bestLike[l];
+	  // highestLike is index of value with highest like
+	  highestLike = l;
+	}
+      }
     }
+    for(int j=10;j<(nBoot+10);j++){
+      for(int k=0;k<nPop;k++){
+	// make first estimated Q starting guess for rest
+	Q[j][k] = Q[highestLike][k];
+	Q_new[j][k] = Q[highestLike][k];
+      }
+    }
+    // same for GL input!!
+    std::swap(F,F_1stRun);
   }
-  lold = likelihoodEmil(Q[0], F, d.nSites, nPop,d.genos);
-  fprintf(stderr,"best like=%f after %d iterations\n",lold,nit);
+  // F_orgOrg original F sampled from
+
+  if(b>9){
+    bootstrap(dOrg,d,F_orgOrg,F_org,F,nPop); 
+    fprintf(stderr,"At this bootstrapping: %i out of: %i\n",b-9,nBoot);
+  }
+  }
+
+  for(int i=0;i<10;i++){
+    fprintf(stderr,"best like %f after %i!\n",bestLike[i],i);
+    fprintf(stderr,"Q %f %f %f %f %f %f %f after %i!\n",Q[i][0],Q[i][1],Q[i][2],Q[i][3],Q[i][4],Q[i][5],Q[i][6],i);
+  } 
+
   fprintf(flog,"estimated  Q = ");
   for(int i=0;i<nPop;i++){
-    fprintf(flog,"%f ",Q[0][i]);
+    fprintf(flog,"%f ",Q[highestLike][i]);
   }
   fprintf(flog,"\n");
-  fprintf(flog,"best like=%f after %d iterations\n",lold,nit);
+
+  fprintf(stderr,"best like %f after %i!\n",bestLike[highestLike],highestLike);
+  fprintf(flog,"best like %f after %i!\n",bestLike[highestLike],highestLike);
+
   
   /////////////////////////////////////////////////////////// done - make output and clean /////////////////////////////////  
   // Print F and Q in files
-
+  
   // change to mean CIlower CIupper
   FILE *fp=openFile(outfiles,".qopt");
   // nBoot + 1, because first value is estimated Q
-  printDouble(Q,nBoot+1,nPop,fp);
+  printDouble(Q,nBoot+10,nPop,highestLike,ref.populations,fp);
   fclose(fp);
-
+  
   // only if certain flag
   if(printFreq>0){
     gzFile fpGz=openFileGz(outfiles,".fopt.gz");
-    printDoubleGz(F_1stRun,d.nSites,nPop,fpGz);
+    printDoubleGz(F_1stRun,d.nSites,nPop,ref.populations,fpGz);
     gzclose(fpGz);
   }
-  
-  //deallocate memory 
-  dalloc(F,d.nSites); 
-  dalloc(F_1stRun,d.nSites);  
-  dalloc(F_new,d.nSites);  
-  dalloc(Q,nBoot+1); 
-  dalloc(Q_new,nBoot+1); 
+  double nop;
+  if(doAdjust>0 and method>0){
+    emAccelEmilV2(d, NULL, 0, NULL, NULL, F_new, Q_new[0],nop,NULL, a);
+ }
 
-  dalloc(F_org,d.nSites);
-  dalloc(F_orgOrg,d.nSites);
+//deallocate memory 
+dalloc(F,d.nSites); 
+dalloc(F_1stRun,d.nSites);  
+dalloc(F_new,d.nSites);  
+dalloc(Q,nBoot+1); 
+dalloc(Q_new,nBoot+1); 
 
-  delete [] N;
+dalloc(F_org,d.nSites);
+dalloc(F_orgOrg,d.nSites);
+
+delete [] N;
+ 
+ 
 
   // problem with F and F_tmp being same pointer 
   // not there any more really
@@ -1781,7 +2153,7 @@ void filterMinMaf(bgl &d,float minMaf, int* &badMaf){
   dallocAccFQ(a,d.nSites);
   dallocBeagle(d);
   dallocBeagle(dOrg);
-  dallocRefPanel(ref);
+  dallocRefPanel(ref,nPop);
 
   for(int i=0;1&&i<dumpedFiles.size();i++){
     //    fprintf(stderr,"dumpedfiles are: %s\n",dumpedFiles[i]);
