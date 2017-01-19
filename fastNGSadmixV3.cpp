@@ -1,3 +1,4 @@
+
 /*
   log:
   g++ fastNGSadmixV3.cpp -lz -lpthread  -O3 -o fastNGSadmixV3
@@ -27,6 +28,7 @@
 #include <vector>
 #include <sys/stat.h>
 #include <map>
+#include <iostream>
 // stringApocalypse
 #include <string>
 #include "readplinkV2.h"
@@ -850,15 +852,18 @@ void printDouble(double **ret,size_t x,size_t y, int highestLike, int nConv, cha
   
 }
 
-void printDoubleGz(double **ret,size_t x,size_t y, char** populations ,gzFile fp){
+
+void printDoubleGz(double **ret,size_t x, size_t y,  char** id, char** populations ,gzFile fp){
 
  for(size_t i=0;i<x;i++){
     if(i==0){
+      gzprintf(fp,"id ");
       for(size_t j=0;j<y;j++){
 	gzprintf(fp,"%s ",populations[j]);
       }
       gzprintf(fp,"\n");
     }
+    gzprintf(fp,"%s ",id[i]);
     for(size_t j=0;j<y;j++){
       gzprintf(fp,"%.4f ",ret[i][j]);
     }
@@ -893,6 +898,7 @@ void bootstrap(bgl dOrg, bgl &d, double** F_orgOrg, double** F_org, double** F, 
   for(int j=0;j<dOrg.nSites;j++){
     // generate random int from 0 to (nSites-1)
     int row = std::rand() % dOrg.nSites;
+    std::cout << row << "\n";
     for(int k = 0; k < nPop; k++) {
       F[j][k] = F_orgOrg[row][k];
       F_org[j][k] = F_orgOrg[row][k];
@@ -1455,7 +1461,7 @@ void info(){
   fprintf(stderr,"\t-tol Tolerance for convergence\n"); 
   fprintf(stderr,"\t-dymBound Use dymamic boundaries (1: yes (default) 0: no)\n"); 
   fprintf(stderr,"\t-maxiter Maximum number of EM iterations\n"); 
-  fprintf(stderr,"\t-boot Number of bootstrapping iterations, default 0, can at most be 100\n"); 
+  fprintf(stderr,"\t-boot Number of bootstrapping iterations, default 0, can at most be 10000\n"); 
 
   fprintf(stderr,"Filtering\n"); 
   fprintf(stderr,"\t-minMaf Minimum minor allele frequency - does not really work!\n"); 
@@ -1476,9 +1482,9 @@ void handler(int s) {
 
 
 void printKeepSites(bgl &d,FILE *ffilter){
-  fprintf(ffilter,"marker\tmajor\tminor\tmaf\tnonMis\n");
+  fprintf(ffilter,"marker\tmajor\tminor\n");
  for(int s=0;s<d.nSites;s++){
-   fprintf(ffilter,"%s\t%d\t%d\t%f\t%d\n",d.ids[s],d.major[s],d.minor[s]);
+   fprintf(ffilter,"%s\t%c\t%c\n",d.ids[s],d.major[s],d.minor[s]);
 
  }
 }
@@ -1586,7 +1592,7 @@ void printKeepSites(bgl &d,FILE *ffilter){
     outfiles=lname;
   }
 
-  nBoot = std::min(std::max(nBoot,0),100);
+  nBoot = std::min(std::max(nBoot,0),10000);
   nConv = std::min(std::max(nConv,1),10);
   
   //out put files
@@ -1661,7 +1667,7 @@ void printKeepSites(bgl &d,FILE *ffilter){
     fprintf(stderr,"Must specify plink file\n");
     info();
   }
- fprintf(stderr,"Overlap: of %i sites between input and ref\n",overlap.size());
+ fprintf(stderr,"Overlap: of %zu sites between input and ref\n",overlap.size());
   
  
   
@@ -1790,25 +1796,29 @@ void printKeepSites(bgl &d,FILE *ffilter){
   // then nBoot new runs for bootstrapping with best Q starting point
   for(int b=0;SIG_COND and b<(nBoot+nConv);b++) {
     nit=0;
-
-      for(nit=1;SIG_COND and nit<maxIter;nit++) {	
-	if(doAdjust==0){
-	  if(method==0){
-	    emUnadjusted(Q[b], F, d.nSites, nPop,d.genos,Q_new[b]);
-	  } else{
+    // F_orgOrg original F sampled from      
+    if(b>(nConv-1)){
+      bootstrap(dOrg,d,F_orgOrg,F_org,F,nPop); 
+      fprintf(stderr,"At this bootstrapping: %i out of: %i\n",b-(nConv-1),nBoot);
+    }
+       for(nit=1;SIG_COND and nit<maxIter;nit++) {	
+      if(doAdjust==0){
+	if(method==0){
+	  emUnadjusted(Q[b], F, d.nSites, nPop,d.genos,Q_new[b]);
+	} else{
 	  
-
-	    if(0==emAccelUnadjustedV2(d, N, nPop, F, Q[b], Q_new[b],lold,F_org, nit, b, Qconv, Qtol)){
-	      if(b<nConv){
-		bestLike[b] = likelihoodEmil(Q[b], F_org, d.nSites, nPop,d.genos);
-		fprintf(stderr,"like after %f\n",bestLike[b]);
-	      }
-	      break;
+	  
+	  if(0==emAccelUnadjustedV2(d, N, nPop, F, Q[b], Q_new[b],lold,F_org, nit, b, Qconv, Qtol)){
+	    if(b<nConv){
+	      bestLike[b] = likelihoodEmil(Q[b], F_org, d.nSites, nPop,d.genos);
+	      fprintf(stderr,"like after %f\n",bestLike[b]);
 	    }
+	    break;
 	  }
-	} else{   
-	  if(method==0){
-	    emEmil(Q[b], F, d.nSites, N, nPop,d.genos,F_new,Q_new[b],F_org);
+	}
+      } else{   
+	if(method==0){
+	  emEmil(Q[b], F, d.nSites, N, nPop,d.genos,F_new,Q_new[b],F_org);
 	  } else{
 	    if(0==emAccelEmilV2(d, N, nPop, F, Q[b], F_new, Q_new[b],lold,F_org, nit, b, Qconv, Qtol)){
 	      if(b<nConv){
@@ -1903,7 +1913,8 @@ void printKeepSites(bgl &d,FILE *ffilter){
       if(b==(nConv-1)){
 	for(int j=nConv;j<(nBoot+nConv);j++){
 	  for(int k=0;k<nPop;k++){
-	    // make first estimated Q starting guess for rest
+
+	    // make first estimated Q starting guess for bootstrap
 	    Q[j][k] = Q[highestLike][k];
 	    Q_new[j][k] = Q[highestLike][k];
 	  }
@@ -1911,11 +1922,7 @@ void printKeepSites(bgl &d,FILE *ffilter){
 
 	
       }
-      // F_orgOrg original F sampled from      
-      if(b>(nConv-1)){
-	bootstrap(dOrg,d,F_orgOrg,F_org,F,nPop); 
-	fprintf(stderr,"At this bootstrapping: %i out of: %i\n",b-(nConv-1),nBoot);
-      }
+      
   }
   
   for(int i=0;i<nConv;i++){
@@ -1951,7 +1958,7 @@ void printKeepSites(bgl &d,FILE *ffilter){
   // only if certain flag
   if(printFreq>0){
     gzFile fpGz=openFileGz(outfiles,".fopt.gz");
-    printDoubleGz(F_1stRun,d.nSites,nPop,ref.populations,fpGz);
+    printDoubleGz(F_1stRun,ref.refSites,nPop,ref.id,ref.populations,fpGz);
     gzclose(fpGz);
   }
   double nop;
