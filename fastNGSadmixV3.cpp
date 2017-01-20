@@ -228,7 +228,24 @@ typedef struct{
 }bgl;
 
 
+bgl allocBeagle(int nSites){
+  bgl b;
 
+  b.nSites = nSites;
+  b.major = new char[nSites];
+  b.minor = new char[nSites];
+  b.ids = new char*[nSites];
+  b.nInd = 1;
+  b.genos= allocDouble(nSites,3);
+  
+  for(int s=0;SIG_COND&& (s<nSites);s++){
+
+    b.major[s] = '0';
+    b.minor[s] = '0';
+  
+  }
+  return(b);
+} 
       
 //utility function for cleaning up out datastruct
 void dallocBeagle(bgl &b){
@@ -432,8 +449,8 @@ bgl readPlinkToBeagle(const char* plinkName, std::map <std::string,int> overlap)
   // make readBim, where gets id and alleles 
   // I do not think it gets that the beagle file has been create
   // and therefore the d.genos is null
-  bgl b;
-  //bgl b = allocBeagle(overlap.size());
+  //bgl b;
+  bgl b = allocBeagle(overlap.size());
   b.nSites = overlap.size();
   b.nInd = 1; // can only have one individual is this program
 
@@ -454,7 +471,7 @@ bgl readPlinkToBeagle(const char* plinkName, std::map <std::string,int> overlap)
       exit(0);
 	
     }
-  
+    
     if(pl->d[0][i]==0){
       b.genos[beagleIndex][2]=1.0-seqError;
       b.genos[beagleIndex][1]=seqError/2.0;
@@ -898,7 +915,6 @@ void bootstrap(bgl dOrg, bgl &d, double** F_orgOrg, double** F_org, double** F, 
   for(int j=0;j<dOrg.nSites;j++){
     // generate random int from 0 to (nSites-1)
     int row = std::rand() % dOrg.nSites;
-    std::cout << row << "\n";
     for(int k = 0; k < nPop; k++) {
       F[j][k] = F_orgOrg[row][k];
       F_org[j][k] = F_orgOrg[row][k];
