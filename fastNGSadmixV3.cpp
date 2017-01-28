@@ -33,27 +33,12 @@
 #include <string>
 #include "readplinkV2.h"
 
-//This is taken from here:
-//http://blog.albertarmea.com/post/47089939939/using-pthread-barrier-on-mac-os-x
-#ifdef __APPLE__
 
-#ifndef PTHREAD_BARRIER_H_
-#define PTHREAD_BARRIER_H_
-
-#include <pthread.h>
-#include <errno.h>
-
-/////////////////////////////////////////////////////////////////////
-// globale ting: functioner + variable(ikke god stil)
-
-
-#endif // PTHREAD_BARRIER_H_
-#endif // __APPLE__
 
 
 
 //global stuff below, this is very beautifull
-char **keeps=NULL;
+
 #define LENS 100000 //this is the max number of bytes perline, should make bigger
 int SIG_COND =1;//if we catch signal then quit program nicely
 double tol=1e-7; //stopping criteria
@@ -62,8 +47,6 @@ double tol=1e-7; //stopping criteria
 double errTolMin=1e-5;
 double errTolStart=0.05;
 double errTol=errTolStart;//frequencies and admixture coef cannot be less than this or more than 1-this
-double misTol=0.05;
-
 
 
 double **allocDouble(size_t x,size_t y){
@@ -489,7 +472,7 @@ bgl readPlinkToBeagle(const char* plinkName, std::map <std::string,int> overlap)
     b.major[beagleIndex]=pl->bim.major[i];
     b.minor[beagleIndex]=pl->bim.minor[i];
     b.ids[beagleIndex]=strdup(pl->bim.id[i]);
-    b.idMap[strdup(pl->bim.id[i])] = 1;
+    b.idMap[bimString] = 1;
 
     beagleIndex++;
   }
@@ -564,7 +547,7 @@ std::vector<char *> tmpRef;
   
   // number of sites in original ref
   int totalSites = tmpRef.size();
-  fprintf(stderr,"Ref has this many sites %i\n",totalSites);
+
   // a bit like the java Scanner, read line from file
   // cuts a string into tokens, where tokens seperated by delimeter
   strtok(buf,delims);
@@ -631,7 +614,7 @@ std::vector<char *> tmpRef;
   // same number sites as in Beagle input
   int refIndex = 0;
   //then loop over the vector and parsing every line
-  fprintf(stderr,"START\n");
+
   //fprintf(stderr,"Is %s Here %i\n",b.ids[8],ids[b.ids[8]]);
   for(int s=0;SIG_COND&& (s<totalSites);s++){
 
@@ -690,7 +673,7 @@ std::vector<char *> tmpRef;
 
             
   }
-  fprintf(stderr,"SLOW?\n");
+
 
   
 
@@ -722,7 +705,6 @@ std::vector<char *> tmpRef;
     ret.keepInd[s] = nKeep;
     ret.mafs[s] = emFrequency(ret.genos[s],ret.nInd,MAF_ITER,MAF_START,ret.keeps[s],ret.keepInd[s]);
     } */
-  fprintf(stderr,"This many in ref %i\n",refIndex);
 
   /* FOR CLEARING UP tmp VECTOR
   for(std::vector<char*>::iterator it = tmp.begin(); it != tmp.end(); ++it){
@@ -788,7 +770,7 @@ void readDoubleGZ(double **d,int nSites,int nPop,const char*fname,int neg){
 
 // for reading number of individuals in each ref
  void readDouble1d(double *d,int nPop,const char*fname, std::map<std::string,int> &popsToKeep){
-  fprintf(stderr,"opening : %s with nPop=%d\n",fname,nPop);
+  fprintf(stderr,"Opening nInd file: %s with K=%d\n",fname,nPop);
   const char*delims=" \n\t";
   FILE *fp = NULL;
   if((fp=fopen(fname,"r"))==NULL){
@@ -1108,7 +1090,7 @@ int emAccelUnadjustedV2(const bgl &d, double* nInd, int nPop, double** F,double*
   double sr2 = sumSquare1dEmil(Q_diff1,nPop);
   // checks if convergence
   if(sqrt(sr2)<tol or (calcThresEmil(Q,Q_em1,nPop) < Qtol and Qconv>0)){
-    fprintf(stderr,"like is %f\n",likelihoodEmil(Q_new, F, d.nSites, nPop,d.genos));    
+    //fprintf(stderr,"like is %f\n",likelihoodEmil(Q_new, F, d.nSites, nPop,d.genos));    
     return 0;  
   }
   // second EM run
@@ -1119,7 +1101,7 @@ int emAccelUnadjustedV2(const bgl &d, double* nInd, int nPop, double** F,double*
   double sq2 = sumSquare1dEmil(Q_diff2,nPop);
   // checks if convergence - a second time
   if(sqrt(sq2)<tol  or (calcThresEmil(Q_em1,Q_em2,nPop) < Qtol and Qconv>0)){
-    fprintf(stderr,"like is %f\n",likelihoodEmil(Q_new, F, d.nSites, nPop,d.genos));
+    //fprintf(stderr,"like is %f\n",likelihoodEmil(Q_new, F, d.nSites, nPop,d.genos));
     return 0;
   }
   // diff between diff1 and diff2
@@ -1171,7 +1153,7 @@ int emAccelUnadjustedV2(const bgl &d, double* nInd, int nPop, double** F,double*
   if(nit % 10 == 0){
     if(boot == 0){
       double lnew = likelihoodEmil(Q_new, F, d.nSites, nPop,d.genos);
-      fprintf(stderr,"iter[%d] like=%f sr2=%f sq2=%f alpha=%f ",nit,lnew,sr2,sq2,alpha);
+      fprintf(stderr,"iter[%d] like=%f alpha=%f ",nit,lnew,alpha);
       for(int i=0;i<nPop;i++){	      
 	fprintf(stderr,"Q=%f, ",Q_new[i]);
       }
@@ -1330,7 +1312,7 @@ int emAccelEmilV2(const bgl &d, double* nInd, int nPop, double** F,double* Q,dou
   if(nit % 10 == 0){
     if(boot == 0){
       double lnew = likelihoodEmil(Q_new, F_new, d.nSites, nPop,d.genos);
-      fprintf(stderr,"iter[%d] like=%f sr2=%f sq2=%f alpha=%f ",nit,lnew,sr2,sq2,alpha);
+      fprintf(stderr,"iter[%d] like=%f alpha=%f ",nit,lnew,alpha);
       for(int i=0;i<nPop;i++){	      
 	fprintf(stderr,"Q=%f, ",Q_new[i]);
       }
@@ -1342,12 +1324,12 @@ int emAccelEmilV2(const bgl &d, double* nInd, int nPop, double** F,double* Q,dou
 }
 
 
-std::map <std::string,int> findOverlap(const char* lname, const char* plinkName, const char* fname){
+std::map <std::string,int> findOverlap(const char* lname, const char* plinkName, const char* fname, FILE* flog){
   std::map <std::string,int> inputSites;
   static std::map <std::string,int> overlap;
   const char *delims = "\t \n";
   std::vector<char*> tmpBeagle;
-  std::vector<char*> tmpPlink;
+  std::vector<char*> tmpRef;
   if(plinkName==NULL){
 
     gzFile fp1 = NULL;
@@ -1400,6 +1382,9 @@ std::map <std::string,int> findOverlap(const char* lname, const char* plinkName,
 
     
   }
+
+  fprintf(stderr,"Input has this many sites %zu\n",inputSites.size());
+  fprintf(flog,"Input has this many sites %zu\n",inputSites.size());
   gzFile fp2 = NULL;
   char buf2[LENS];
   
@@ -1412,14 +1397,16 @@ std::map <std::string,int> findOverlap(const char* lname, const char* plinkName,
   // while still some left of string from file
   while(gzgets(fp2,buf2,LENS)){
     // duplicates string and puts it into tmp vector
-    tmpPlink.push_back(strdup(buf2));    
+    tmpRef.push_back(strdup(buf2));    
   }
+  fprintf(stderr,"Ref has this many sites %zu\n",tmpRef.size());
+  fprintf(flog,"Ref has this many sites %zu\n",tmpRef.size());
 
   // starts at 1 to avoid header
-  for(int s=1;SIG_COND&& (s<tmpPlink.size());s++){
+  for(int s=1;SIG_COND&& (s<tmpRef.size());s++){
 
     // looking at id value chr_pos for detecting overlap
-    char* id = strtok(tmpPlink[s],delims);
+    char* id = strtok(tmpRef[s],delims);
     std::string plinkString(id,strlen(id)); 
     // check if site is in beagle file
     // otherwise continues to next site in ref
@@ -1434,15 +1421,15 @@ std::map <std::string,int> findOverlap(const char* lname, const char* plinkName,
   }
   gzclose(fp2);
   if(lname!=NULL){
-    for(int s=0;SIG_COND&& (s<tmpPlink.size());s++){
-      free(tmpPlink[s]);
+    for(int s=0;SIG_COND&& (s<tmpRef.size());s++){
+      free(tmpRef[s]);
     }
     for(int s=0;SIG_COND&& (s<tmpBeagle.size());s++){
       free(tmpBeagle[s]);
     }
   } else if(plinkName!=NULL){
-    for(int s=0;SIG_COND&& (s<tmpPlink.size());s++){
-      free(tmpPlink[s]);
+    for(int s=0;SIG_COND&& (s<tmpRef.size());s++){
+      free(tmpRef[s]);
     }
   } 
   return(overlap);
@@ -1468,7 +1455,7 @@ void info(){
   fprintf(stderr,"\t-seed Seed for initial guess in EM\n"); 
   fprintf(stderr,"\t-P Number of threads\n"); 
   fprintf(stderr,"\t-method If 0 no acceleration of EM algorithm (1: yes (default), 0: no)\n"); 
-  fprintf(stderr,"\t-misTol Tolerance for considering site as missing\n");
+
 
   fprintf(stderr,"Stop chriteria:\n"); 
   fprintf(stderr,"\t-Qconv Stopping criteria based on change in Q (works best when using doAdjust) (1: yes, 0: no (default))\n"); 
@@ -1479,8 +1466,8 @@ void info(){
   fprintf(stderr,"\t-maxiter Maximum number of EM iterations\n"); 
   fprintf(stderr,"\t-boot Number of bootstrapping iterations, default 0, can at most be 10000\n"); 
 
-  fprintf(stderr,"Filtering\n"); 
-  fprintf(stderr,"\t-minMaf Minimum minor allele frequency - does not really work!\n"); 
+
+
 
   exit(0);
 }
@@ -1497,13 +1484,6 @@ void handler(int s) {
 
 
 
-void printKeepSites(bgl &d,FILE *ffilter){
-  fprintf(ffilter,"marker\tmajor\tminor\n");
- for(int s=0;s<d.nSites;s++){
-   fprintf(ffilter,"%s\t%c\t%c\n",d.ids[s],d.major[s],d.minor[s]);
-
- }
-}
 
 ////////////////////////// it begins 
  int main(int argc, char **argv){ 
@@ -1578,9 +1558,7 @@ void printKeepSites(bgl &d,FILE *ffilter){
     else if(strcmp(*argv,"-tol")==0||strcmp(*argv,"-t")==0) tol=atof(*++argv);
     else if(strcmp(*argv,"-maxiter")==0 || strcmp(*argv,"-i")==0) maxIter=atoi(*++argv); 
     // different filterings 
-    else if(strcmp(*argv,"-misTol")==0 || strcmp(*argv,"-mt")==0) misTol=atof(*++argv);
-    // might not really work, not sure if should apply to refPanel?
-    else if(strcmp(*argv,"-minMaf")==0||strcmp(*argv,"-maf")==0) minMaf=atof(*++argv);
+
 
     // different genotype callers - tolerance which we do use
     else{
@@ -1613,9 +1591,9 @@ void printKeepSites(bgl &d,FILE *ffilter){
   
   //out put files
   FILE *flog=openFile(outfiles,".log");
-  FILE *ffilter=openFile(outfiles,".filter");
 
-  fprintf(stderr,"Input: lname=%s nPop=%d, fname=%s outfiles=%s\n",lname,nPop,fname,outfiles);
+
+  fprintf(stderr,"Input: lname=%s plink=%s K=%d Nname=%s fname=%s outfiles=%s\n",lname,plinkName,nPop,Nname,fname,outfiles);
   fprintf(stderr,"Setup: seed=%d method=%d\n",seed,method);
   if(method==0){
     fprintf(stderr,"The unaccelerated EM has been chosen\n");
@@ -1632,9 +1610,8 @@ void printKeepSites(bgl &d,FILE *ffilter){
   if(Qconv>0){
     fprintf(stderr,"Convergence via difference in Q values chosen, threshold of: %f\n",Qtol);    
   }
-  fprintf(stderr,"Filters: misTol=%f minMaf=%f\n",misTol,minMaf);
 
-  fprintf(flog,"Input: lname=%s nPop=%d, fname=%s outfiles=%s\n",lname,nPop,fname,outfiles);
+  fprintf(flog,"Input: lname=%s plink=%s K=%d Nname=%s fname=%s outfiles=%s\n",lname,plinkName,nPop,Nname,fname,outfiles);
   fprintf(flog,"Setup: seed=%d method=%d\n",seed,method);
   if(method==0){
     fprintf(flog,"The unacceleted EM has been chosen\n");
@@ -1651,8 +1628,8 @@ void printKeepSites(bgl &d,FILE *ffilter){
   if(Qconv>0){
     fprintf(flog,"Convergence via difference in Q values chosen, threshold of: %f\n",Qtol);    
   }
-  fprintf(flog,"Convergence: maxIter=%d tol=%f tolLike10=%f\n",maxIter,tol,tolLike10);
-  fprintf(flog,"Filters: misTol=%f minMaf=%f\n",misTol,minMaf);
+
+
 
 
   errTolStart = errTolMin;
@@ -1670,12 +1647,12 @@ void printKeepSites(bgl &d,FILE *ffilter){
   std::map <std::string,int> overlap;
   if(lname!=NULL){
 
-    overlap = findOverlap(lname, NULL, fname);
+    overlap = findOverlap(lname, NULL, fname,flog);
     
     d=readBeagle(lname,overlap);
     dOrg=readBeagle(lname,overlap);
   } else if(plinkName!=NULL){
-    overlap = findOverlap(NULL, plinkName, fname);
+    overlap = findOverlap(NULL, plinkName, fname,flog);
     d=readPlinkToBeagle(plinkName, overlap);
     dOrg=readPlinkToBeagle(plinkName, overlap);
     
@@ -1684,13 +1661,11 @@ void printKeepSites(bgl &d,FILE *ffilter){
     info();
   }
  fprintf(stderr,"Overlap: of %zu sites between input and ref\n",overlap.size());
-  
+ fprintf(flog,"Overlap: of %zu sites between input and ref\n",overlap.size());  
  
   
   //  fprintf(stderr,"plink last prob %f %f %f\n",d.genos[157946][0],d.genos[157946][1],d.genos[157946][2]);
    
-  fprintf(stderr,"Input file has dim: nsites=%d nind=%d\n",d.nSites,d.nInd);
-  fprintf(flog,"Input file has dim: nsites=%d nind=%d\n",d.nSites,d.nInd);
 
   // to get only some populations in refPanel
   std::map <std::string,int> includedPops;
@@ -1715,9 +1690,7 @@ void printKeepSites(bgl &d,FILE *ffilter){
   // to find out which version of C++
   //fprintf(stderr,"V: [%ld] ", __cplusplus);
   
-  if(printInfo){
-    printKeepSites(d,ffilter);
-  }
+
   fflush(stderr);
 
   // seed for bootstrapping, have only one seed!
@@ -1817,7 +1790,7 @@ void printKeepSites(bgl &d,FILE *ffilter){
       bootstrap(dOrg,d,F_orgOrg,F_org,F,nPop); 
       fprintf(stderr,"At this bootstrapping: %i out of: %i\n",b-(nConv-1),nBoot);
     }
-       for(nit=1;SIG_COND and nit<maxIter;nit++) {	
+    for(nit=1;SIG_COND and nit<maxIter;nit++) {	
       if(doAdjust==0){
 	if(method==0){
 	  emUnadjusted(Q[b], F, d.nSites, nPop,d.genos,Q_new[b]);
@@ -1835,110 +1808,110 @@ void printKeepSites(bgl &d,FILE *ffilter){
       } else{   
 	if(method==0){
 	  emEmil(Q[b], F, d.nSites, N, nPop,d.genos,F_new,Q_new[b],F_org);
-	  } else{
-	    if(0==emAccelEmilV2(d, N, nPop, F, Q[b], F_new, Q_new[b],lold,F_org, nit, b, Qconv, Qtol)){
-	      if(b<nConv){
-		double tmpLike =  likelihoodEmil(Q[b], F_new, d.nSites, nPop,d.genos);
-		if(b==0){
+	} else{
+	  if(0==emAccelEmilV2(d, N, nPop, F, Q[b], F_new, Q_new[b],lold,F_org, nit, b, Qconv, Qtol)){
+	    if(b<nConv){
+	      double tmpLike =  likelihoodEmil(Q[b], F_new, d.nSites, nPop,d.genos);
+	      if(b==0){
+		for(int i=0;i<d.nSites;i++){
+		  for(int j=0;j<nPop;j++){
+			F_1stRun[i][j] = F_new[i][j];
+		  }
+		}
+	      } else{
+		if(tmpLike > bestLike[highestLike]){
+		  highestLike = b;
 		  for(int i=0;i<d.nSites;i++){
-		      for(int j=0;j<nPop;j++){
-			F_1stRun[i][j] = F_new[i][j];
-		      }
-		    }
-		} else{
-		  if(tmpLike > bestLike[highestLike]){
-		    highestLike = b;
-		    for(int i=0;i<d.nSites;i++){
-		      for(int j=0;j<nPop;j++){
-			F_1stRun[i][j] = F_new[i][j];
-		      }
+		    for(int j=0;j<nPop;j++){
+		      F_1stRun[i][j] = F_new[i][j];
 		    }
 		  }
 		}
-		bestLike[b] = tmpLike;
-		fprintf(stderr,"like after %f\n", bestLike[b]);
 	      }
-	      break;
+	      bestLike[b] = tmpLike;
+	      fprintf(stderr,"like after %f\n", bestLike[b]);
 	    }
-
+	    break;
 	  }
-	  std::swap(F,F_new);
+	  
 	}
-      	std::swap(Q,Q_new);
-
-	if((nit%10)==0 and method == 0){ //stopping criteria
-      	  // thres is largest differense in admixture fractions
-	  //fprintf(stderr,"delta Qs  %f last: %f\n",calcThresEmil(Q[b],Q_new[b],nPop),lastQthres);
-	  //	  double lik = likelihoodEmil(Q[b], F_org, d.nSites, nPop,d.genos);
-	  double lik = likelihoodEmil(Q[b], F, d.nSites, nPop,d.genos);
-	  if(b==0){
+	std::swap(F,F_new);
+      }
+      std::swap(Q,Q_new);
+      
+      if((nit%10)==0 and method == 0){ //stopping criteria
+	// thres is largest differense in admixture fractions
+	//fprintf(stderr,"delta Qs  %f last: %f\n",calcThresEmil(Q[b],Q_new[b],nPop),lastQthres);
+	//	  double lik = likelihoodEmil(Q[b], F_org, d.nSites, nPop,d.genos);
+	double lik = likelihoodEmil(Q[b], F, d.nSites, nPop,d.genos);
+	if(b==0){
 	    fprintf(stderr,"iter[%d] last like is=%f thres=%f\t",nit,likeLast,calcThresEmil(Q[b],Q_new[b],nPop));
 	    fprintf(stderr,"iter[%d] like is=%f thres=%f\t",nit,lik,calcThresEmil(Q[b],Q_new[b],nPop));
 	    fprintf(stderr,"iter[%d] diff in likelihood is=%f\t",nit,std::abs(lik-likeLast));
 	    fprintf(stderr,"iter[%d] ",nit);
 	    for(int i=0;i<nPop;i++){	      
 	      fprintf(stderr,"Q is=%f, ",Q[b][i]);
-
+	      
 	    }
 	    fprintf(stderr,"\n");      
+	}
+	if(calcThresEmil(Q[b],Q_new[b],nPop) < Qtol and Qconv>0) {
+	  if(b==0){
+	    fprintf(stderr,"Convergence achived because diffence in Q values less than %f\n",Qtol);
 	  }
-	  if(calcThresEmil(Q[b],Q_new[b],nPop) < Qtol and Qconv>0) {
-	    if(b==0){
-	      fprintf(stderr,"Convergence achived because diffence in Q values less than %f\n",Qtol);
-	    }
-	    if(b<nConv){
-	      bestLike[b] = lik;
-	    }
-  	    break;
-	  } else if(std::abs(lik-likeLast) < tolLike10 and Qconv==0) {
-	    if(b==0){
+	  if(b<nConv){
+	    bestLike[b] = lik;
+	  }
+	  break;
+	} else if(std::abs(lik-likeLast) < tolLike10 and Qconv==0) {
+	  if(b==0){
 	      fprintf(stderr,"Convergence achived becuase log likelihooditer difference is less than %f\n",tol);
-	    }
-	    if(lik-likeLast<0){
-	      if(b==0){
-		fprintf(stderr,"Convergence achived because log likelihood difference was NEGATIVE\n");
-	      }
-	    }
-	    if(b<nConv){
-	      bestLike[b] = lik;
-	    }
-	    break;
 	  }
-	  likeLast = lik;
-	}	
-	if((nit+1)==maxIter){
-	  bestLike[b] = likeLast;
-	}
-      }     
-      fprintf(stderr,"CONVERGENCE!\n");
-      if(b<nConv){
-	fprintf(stderr,"This many iterations %i for run %i\n",nit,b);
-	fprintf(flog,"This many iterations %i for run %i\n",nit,b);
-	
+	  if(lik-likeLast<0){
+	    if(b==0){
+	      fprintf(stderr,"Convergence achived because log likelihood difference was NEGATIVE\n");
+	    }
+	  }
+	  if(b<nConv){
+	    bestLike[b] = lik;
+	  }
+	  break;
+	  }
+	likeLast = lik;
+      }	
+      if((nit+1)==maxIter){
+	bestLike[b] = likeLast;
       }
-      for(int i=0;i<d.nSites;i++){
-	for(int k=0;k<nPop;k++){
-	  // original ref panel freqs
-	  F[i][k] = F_orgOrg[i][k];
-	  F_new[i][k] = F_orgOrg[i][k];
-	}
-      }    
-      // first run
-      // nBoot + 1 rows
-      // to find the Q with lowest likelihood, after 10 first runs
-      if(b==(nConv-1)){
-	for(int j=nConv;j<(nBoot+nConv);j++){
-	  for(int k=0;k<nPop;k++){
-
-	    // make first estimated Q starting guess for bootstrap
-	    Q[j][k] = Q[highestLike][k];
-	    Q_new[j][k] = Q[highestLike][k];
-	  }
-	}
-
+    }     
+    fprintf(stderr,"CONVERGENCE!\n");
+    if(b<nConv){
+      fprintf(stderr,"This many iterations %i for run %i\n",nit,b);
+      fprintf(flog,"This many iterations %i for run %i\n",nit,b);
 	
+    }
+    for(int i=0;i<d.nSites;i++){
+      for(int k=0;k<nPop;k++){
+	// original ref panel freqs
+	F[i][k] = F_orgOrg[i][k];
+	F_new[i][k] = F_orgOrg[i][k];
+      }
+    }    
+    // first run
+    // nBoot + 1 rows
+    // to find the Q with lowest likelihood, after 10 first runs
+    if(b==(nConv-1)){
+      for(int j=nConv;j<(nBoot+nConv);j++){
+	for(int k=0;k<nPop;k++){
+	  
+	    // make first estimated Q starting guess for bootstrap
+	  Q[j][k] = Q[highestLike][k];
+	  Q_new[j][k] = Q[highestLike][k];
+	}
       }
       
+	
+    }
+    
   }
   
   for(int i=0;i<nConv;i++){
@@ -2025,7 +1998,7 @@ void printKeepSites(bgl &d,FILE *ffilter){
   fprintf(flog, "\t[ALL done] walltime used =  %.2f sec\n", (float)(time(NULL) - t2));  
   fclose(flog); 
   
-  fclose(ffilter);
+
   return 0;
     
  }
