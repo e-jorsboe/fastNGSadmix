@@ -140,12 +140,12 @@ famFile readFamFile(const char* fname) {
    const char *delims = "\t \n";
    pFile = fopen (fname , "r");
    if (pFile == NULL) perror ("Error opening file");
-   std::vector<char*> tmp;
+   std::vector<char*> tmpFam;
    while(1){
        if (fgets(buffer,100, pFile) == NULL) break;
-       tmp.push_back(strdup(buffer));
+       tmpFam.push_back(strdup(buffer));
    }
-   int lines = tmp.size();
+   int lines = tmpFam.size();
    
    famFile fam;
    fam.individuals = lines;
@@ -157,10 +157,10 @@ famFile readFamFile(const char* fname) {
    fam.phenotype = new double[lines];
    
    
-   //fprintf(stdout,"Vector %s, %s, l=%i\n",tmp[0],tmp[1],tmp.size());
+   //fprintf(stdout,"Vector %s, %s, l=%i\n",tmpFam[0],tmpFam[1],tmpFam.size());
    for(int i=0; i<lines;i++){
            
-    fam.familyID[i] = strdup(strtok(tmp[i],delims));
+    fam.familyID[i] = strdup(strtok(tmpFam[i],delims));
     fam.individualID[i] = strdup(strtok(NULL,delims));
     fam.maternalID[i] = strdup(strtok(NULL,delims));
     fam.paternalID[i] = strdup(strtok(NULL,delims));
@@ -168,7 +168,10 @@ famFile readFamFile(const char* fname) {
     fam.phenotype[i] = atof(strtok(NULL,delims));
       
     }
-    
+
+   for(int i=0; i<lines;i++){
+     free(tmpFam[i]);
+   }
    fclose (pFile);
    
    return(fam);
@@ -182,12 +185,12 @@ bimFile readBimFile(const char* fname) {
    const char *delims = "\t \n";
    pFile = fopen (fname , "r");
    if (pFile == NULL) perror ("Error opening file");
-   std::vector<char*> tmp;
+   std::vector<char*> tmpBim;
    while(1){
        if (fgets(buffer,100, pFile) == NULL) break;
-       tmp.push_back(strdup(buffer));
+       tmpBim.push_back(strdup(buffer));
    }
-   int lines = tmp.size();
+   int lines = tmpBim.size();
    
    bimFile bim;
    bim.sites = lines;
@@ -200,10 +203,10 @@ bimFile readBimFile(const char* fname) {
    // do chr_pos id here
    bim.id = new char*[lines];
    
-   //fprintf(stdout,"Vector %s, %s, l=%i\n",tmp[0],tmp[1],tmp.size());
+   //fprintf(stdout,"Vector %s, %s, l=%i\n",tmpBim[0],tmpBim[1],tmpBim.size());
    for(int i=0; i<lines;i++){
            
-     bim.chr[i] = atoi(strtok(tmp[i],delims));
+     bim.chr[i] = atoi(strtok(tmpBim[i],delims));
      bim.rs[i] = strdup(strtok(NULL,delims));
      bim.recombrate[i] = atof(strtok(NULL,delims));
      bim.position[i] = atoi(strtok(NULL,delims));
@@ -223,6 +226,10 @@ bimFile readBimFile(const char* fname) {
      
      
    }
+   for(int i=0; i<lines;i++){
+     free(tmpBim[i]);
+   }
+   
    
    fclose (pFile);
    
@@ -277,7 +284,7 @@ plink *readplink(const char *str){
   //  nrow=3;
   if(ncol==0||nrow==0)
     return 0;
-  fprintf(stderr,"Done reading file: \'%s\' with dim ncol:%d\tnrow:%d\n",str,ncol,nrow);
+  //fprintf(stderr,"Done reading file: \'%s\' with dim ncol:%d\tnrow:%d\n",str,ncol,nrow);
   strcpy(fname+strlen(str),".bed");
   unsigned char **dat = readbed(fname,nrow,ncol);
   p->x=nrow;
