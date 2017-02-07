@@ -139,7 +139,10 @@ famFile readFamFile(const char* fname) {
    char buffer [10000];
    const char *delims = "\t \n";
    pFile = fopen (fname , "r");
-   if (pFile == NULL) perror ("Error opening file");
+   if (pFile == NULL) {
+     perror ("Error opening fam file");
+     exit(0);
+   }
    std::vector<char*> tmpFam;
    while(1){
        if (fgets(buffer,100, pFile) == NULL) break;
@@ -184,7 +187,10 @@ bimFile readBimFile(const char* fname) {
    char buffer [10000];
    const char *delims = "\t \n";
    pFile = fopen (fname , "r");
-   if (pFile == NULL) perror ("Error opening file");
+   if (pFile == NULL) {
+     perror ("Error opening bim file");
+     exit(0);
+   }
    std::vector<char*> tmpBim;
    while(1){
        if (fgets(buffer,100, pFile) == NULL) break;
