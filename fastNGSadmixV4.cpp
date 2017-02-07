@@ -13,7 +13,8 @@
   g++ fastNGSadmixV4.cpp readplinkV2.c -lz -lpthread -ggdb -O3 -o fastNGSadmixV4
 
 */
- 
+
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -767,6 +768,12 @@ void readDoubleGZ(double **d,int nSites,int nPop,const char*fname,int neg){
     
     orgCol++;
   }
+  if((newCol-1)!=popsToKeep.size()){
+    fprintf(stderr,"nInd and ref panel do not have same size!\n");
+    exit(0);
+  }
+
+  
   free(tmp[0]);
   
   word = strtok(tmp[1],delims);
@@ -1515,10 +1522,16 @@ void handler(int s) {
     fprintf(stderr,"Please supply ONLY a beagle or plink input file, not BOTH: -likes or -plink");
     info();
   }
-  if(outfiles==NULL){
+  if(outfiles==NULL and lname!=NULL){
     fprintf(stderr,"Will use beagle name as prefix for output\n");
     outfiles=lname;
   }
+  
+  if(outfiles==NULL and plinkName!=NULL){
+    fprintf(stderr,"Will use plink name as prefix for output\n");
+    outfiles=plinkName;
+  }
+
 
   nBoot = std::min(std::max(nBoot,0),10000);
   nConv = std::min(std::max(nConv,1),10);
@@ -1637,6 +1650,7 @@ void handler(int s) {
 
   if(nPop>ref.popsToKeep.size()){
     fprintf(stderr,"K of %i, bigger than populations in ref panel\n",nPop);
+    info();
 
   }
     
@@ -1693,6 +1707,9 @@ void handler(int s) {
   // reading nInd, where colsToKeep from ref specified
   // to read in the same columns as in ref
   readDouble1d(N,nPop,Nname,ref.popsToKeep);
+
+  // check ref panel and nInd same size
+  
   for(int i=0;i<nPop;i++){
     fprintf(stderr,"N = %f\n",N[i]);
     fprintf(flog,"Chosen pop %s\n",ref.populations[i]);
