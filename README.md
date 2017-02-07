@@ -9,4 +9,4 @@ Installation:
 
 git clone https://github.com/e-jorsboe/fastNGSadmix.git;
 
-make
+cd fastNGSadmix; make
