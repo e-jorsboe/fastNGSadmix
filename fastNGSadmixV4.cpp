@@ -829,7 +829,7 @@ void printDoubleGz(double **ret,size_t x, size_t y,  char** id, char** populatio
     }
     gzprintf(fp,"%s ",id[i]);
     for(size_t j=0;j<y;j++){
-      gzprintf(fp,"%.4f ",ret[i][j]);
+      gzprintf(fp,"%.4f ",1-ret[i][j]);
     }
     gzprintf(fp,"\n");
   }
@@ -964,8 +964,8 @@ void em(double* Q, double** F, int nSites, double* nInd, int nPop,double **genos
       sumA[k] += sumAG[k];
       sumB[k] += sumBG[k];
       // adjust with ref panel, so we have input + ref expected number of alleles
-      sumAG[k]+=nInd[k]*2*F_org[j][k];
-      sumBG[k]+=2*nInd[k]-(2*nInd[k]*F_org[j][k]);      
+      sumAG[k] += nInd[k]*2*F_org[j][k];
+      sumBG[k] += 2*nInd[k]-(2*nInd[k]*F_org[j][k]);      
     }
 
     for(int k=0;k<nPop;k++){ //time killar
@@ -1391,18 +1391,18 @@ void info(){
   fprintf(stderr,"Arguments:\n");
   fprintf(stderr,"\t-likes Beagle likelihood filename\n");
   fprintf(stderr,"\t-plink Plink file in the binary bed format\n");
-  fprintf(stderr,"\t-K Number of ancestral populations - default value is 3\n"); 
+  fprintf(stderr,"\t-K Number of ancestral populations\n"); 
   fprintf(stderr,"\t-Nname Number of individuals in each reference populations\n");
   fprintf(stderr,"\t-fname Ancestral population frequencies\n");
 
   fprintf(stderr,"Optional:\n");
-  fprintf(stderr,"\t-outfiles Prefix for output files\n"); 
+  fprintf(stderr,"\t-out Prefix for output files\n"); 
   fprintf(stderr,"\t-printFreq print admixture adjusted allele frequencies of reference panel + input individual (1: yes, 0: no (default))\n"); 
 
   fprintf(stderr,"Setup:\n");
   fprintf(stderr,"\t-whichPops Which populations from the reference panel to include in analysis, must be comma seperated (pop1,pop2,..)\n");
   fprintf(stderr,"\t-doAdjust Adjusts the frequencies in the reference populations with the input (1: yes (default), 0: no)\n");
-  fprintf(stderr,"\t-seed Seed for initial guess in EM\n"); 
+  fprintf(stderr,"\t-seed Seed for initial guess in EM and for bootstrap\n"); 
   fprintf(stderr,"\t-method If 0 no acceleration of EM algorithm (1: yes (default), 0: no)\n"); 
 
   fprintf(stderr,"Stop chriteria:\n"); 
@@ -1458,7 +1458,7 @@ void handler(int s) {
   const char* Nname = NULL;
   const char* outfiles = NULL;
   const char* plinkName = NULL;
-  int nPop = 3;
+  int nPop = 0;
   int seed = time(NULL);
   double tol=0.00001; // changed by 
   int nBoot = 0; // for bootstrapping
@@ -1513,15 +1513,19 @@ void handler(int s) {
 
   //check that non optional options have been used. 
   if(lname==NULL and plinkName==NULL){
-    fprintf(stderr,"Please supply a beagle or plink input file: -likes or -plink");
+    fprintf(stderr,"Please supply a beagle or plink input file: -likes or -plink\n");
     info();
   } else if(fname==NULL){
-    fprintf(stderr,"Please supply a reference panel: -fname");
+    fprintf(stderr,"Please supply a reference panel: -fname\n");
     info();
   } else if(lname!=NULL and plinkName!=NULL){
-    fprintf(stderr,"Please supply ONLY a beagle or plink input file, not BOTH: -likes or -plink");
+    fprintf(stderr,"Please supply ONLY a beagle or plink input file, not BOTH: -likes or -plink\n");
     info();
-  }
+  } else if(Nname==NULL){
+    fprintf(stderr,"Please supply number of individauls file: -Nname\n");
+    info();
+  } 
+
   if(outfiles==NULL and lname!=NULL){
     fprintf(stderr,"Will use beagle name as prefix for output\n");
     outfiles=lname;
@@ -1578,6 +1582,11 @@ void handler(int s) {
   }
 
 
+  if(nPop<2){
+    fprintf(stderr,"Have to specify K, and has to be at least 2, K=%i\n",nPop);
+    fprintf(flog,"Have to specify K, and has to be at least 2, K=%i\n",nPop);
+    info();
+  }
 
 
   errTolStart = errTolMin;
@@ -1615,7 +1624,8 @@ void handler(int s) {
  
   
   //  fprintf(stderr,"plink last prob %f %f %f\n",d.genos[157946][0],d.genos[157946][1],d.genos[157946][2]);
-   
+
+ 
 
   // to get only some populations in refPanel
   std::map <std::string,int> includedPops;
@@ -1699,21 +1709,24 @@ void handler(int s) {
  
   delete [] sum;
 
-  if(Nname==NULL){
-    fprintf(stderr,"Please supply number of individauls file: -Nname");
-    info();
-  }
-
+  
   // reading nInd, where colsToKeep from ref specified
   // to read in the same columns as in ref
   readDouble1d(N,nPop,Nname,ref.popsToKeep);
 
   // check ref panel and nInd same size
+  // being printed in function to stderr
+  fprintf(flog,"Opening nInd file: %s with K=%d\n",fname,nPop);
   
   for(int i=0;i<nPop;i++){
+
+    fprintf(flog,"N = %f\n",N[i]);
     fprintf(stderr,"N = %f\n",N[i]);
+    // being printed in function to stderr
     fprintf(flog,"Chosen pop %s\n",ref.populations[i]);
   }
+  fprintf(stderr,"\n");
+  fprintf(flog,"\n");
 
   double* bestLike = new double[nConv];
   int highestLike = 0;
@@ -1836,6 +1849,9 @@ void handler(int s) {
     if(b<nConv){
       fprintf(stderr,"This many iterations %i for run %i\n",nit,b);
       fprintf(flog,"This many iterations %i for run %i\n",nit,b);
+
+      fprintf(stderr,"\n");
+      fprintf(flog,"\n");
 	
     }
     for(int i=0;i<d.nSites;i++){
