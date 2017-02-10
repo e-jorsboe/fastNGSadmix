@@ -9,6 +9,8 @@
 
 */
 
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,12 +51,11 @@ void dallocBimFile(bimFile &b){
   
 }
 
-
+// bed file reader modified from snpMatrix by Clayton and Hintak Leung 2007
 /*
   output will be genotype[ind][nsites]
   g \in {0,1,2,3},counts of allele2, 3=NA/missing
 */
-//modified from snpMatrix by clayton and hintak leung 2007
 unsigned char **readbed(const char* file, int nrow,int ncol) {
   int i;
   const unsigned char recode[4] = {'\x01', '\x00', '\x02', '\x03'};
@@ -77,14 +78,11 @@ unsigned char **readbed(const char* file, int nrow,int ncol) {
     exit(0);
   }
   /* Create output object */
-
-  
   unsigned char** results =(unsigned char**) calloc(nrow,sizeof(unsigned char*));
   for(i=0;i<nrow;i++)
     results[i] =(unsigned char*) calloc(ncol,sizeof(unsigned char));
 
   /* Read in data */
-
   int snp_major = start[2];
   int part=0, ij=0, j=0;i=0;
   while (1) {
@@ -133,6 +131,7 @@ unsigned char **readbed(const char* file, int nrow,int ncol) {
   return results;
 }
 
+// reads fam file
 famFile readFamFile(const char* fname) {
 
    FILE* pFile;
@@ -157,18 +156,17 @@ famFile readFamFile(const char* fname) {
    fam.paternalID = new char*[lines];
    fam.maternalID = new char*[lines];
    fam.sex = new int[lines];
-   fam.phenotype = new double[lines];
-   
+   fam.phenotype = new double[lines]; 
    
    //fprintf(stdout,"Vector %s, %s, l=%i\n",tmpFam[0],tmpFam[1],tmpFam.size());
    for(int i=0; i<lines;i++){
            
-    fam.familyID[i] = strdup(strtok(tmpFam[i],delims));
-    fam.individualID[i] = strdup(strtok(NULL,delims));
-    fam.maternalID[i] = strdup(strtok(NULL,delims));
-    fam.paternalID[i] = strdup(strtok(NULL,delims));
-    fam.sex[i] = atoi(strtok(NULL,delims));
-    fam.phenotype[i] = atof(strtok(NULL,delims));
+     fam.familyID[i] = strdup(strtok(tmpFam[i],delims));
+     fam.individualID[i] = strdup(strtok(NULL,delims));
+     fam.maternalID[i] = strdup(strtok(NULL,delims));
+     fam.paternalID[i] = strdup(strtok(NULL,delims));
+     fam.sex[i] = atoi(strtok(NULL,delims));
+     fam.phenotype[i] = atof(strtok(NULL,delims));
       
     }
 
@@ -180,7 +178,7 @@ famFile readFamFile(const char* fname) {
    return(fam);
 }
 
-
+// read bim file with chr_pos ids
 bimFile readBimFile(const char* fname) {
 
    FILE* pFile;
@@ -206,10 +204,9 @@ bimFile readBimFile(const char* fname) {
    bim.position = new int[lines];
    bim.minor = new char[lines];
    bim.major = new char[lines];
-   // do chr_pos id here
+   // chr_pos id here
    bim.id = new char*[lines];
    
-   //fprintf(stdout,"Vector %s, %s, l=%i\n",tmpBim[0],tmpBim[1],tmpBim.size());
    for(int i=0; i<lines;i++){
            
      bim.chr[i] = atoi(strtok(tmpBim[i],delims));
@@ -224,18 +221,17 @@ bimFile readBimFile(const char* fname) {
      
      sprintf(chr, "%d", bim.chr[i]);
      sprintf(pos, "%d", bim.position[i]);
-     
+
+     // for concatenating strings
      char *concat =(char*) malloc(strlen(pos)+5);
      strcpy(concat,chr);strcpy(concat+strlen(chr),"_");strcpy(concat+(strlen(chr)+1),pos);
      bim.id[i] = strdup(concat);
      free(concat);
-     
-     
+       
    }
    for(int i=0; i<lines;i++){
      free(tmpBim[i]);
    }
-   
    
    fclose (pFile);
    
@@ -290,7 +286,6 @@ plink *readplink(const char *str){
   //  nrow=3;
   if(ncol==0||nrow==0)
     return 0;
-  //fprintf(stderr,"Done reading file: \'%s\' with dim ncol:%d\tnrow:%d\n",str,ncol,nrow);
   strcpy(fname+strlen(str),".bed");
   unsigned char **dat = readbed(fname,nrow,ncol);
   p->x=nrow;
