@@ -648,7 +648,7 @@ void readDoubleGZ(double **d,int nSites,int nPop,const char*fname,int neg){
 }
 
 // for reading number of individuals in each ref - nInd file
-void readDouble1d(double *d,int nPop,const char*fname, std::map<std::string,int> &popsToKeep){
+void readDouble1d(double *d,int nPop,const char*fname, std::map<std::string,int> popsToKeep){
   fprintf(stderr,"Opening nInd file: %s with K=%d\n",fname,nPop);
   const char*delims=" \n\t";
   FILE *fp = NULL;
@@ -670,18 +670,21 @@ void readDouble1d(double *d,int nPop,const char*fname, std::map<std::string,int>
   char * word = strtok(tmp[0],delims);
   // keeps track of which value at in nInd file, newCol has to be index+1, because has to be > 0 for lookup
   int orgCol = 0;
-  int newCol = 1;
+
   while(word!=NULL){
     std::string stringWord(word,strlen(word));
     if(popsToKeep.count(stringWord)>0){
-      // because map index has to start at 1 for count method to work
-      toKeep[orgCol] = newCol;
-      newCol++;
+    
+      // creates map of <nInd index, ref index> so can map from nInd order to ref order
+      // so if first element in nInd is second in ref
+      // the d array with nInd values has second element equal to nInd first value
+      toKeep[orgCol] = popsToKeep[word];
+
     }
     word = strtok(NULL,delims); 
     orgCol++;
   }
-  if((newCol-1)!=popsToKeep.size()){
+  if(toKeep.size()!=popsToKeep.size()){
     fprintf(stderr,"nInd and ref panel do not have same size!\n");
     exit(0);
   }
@@ -693,10 +696,15 @@ void readDouble1d(double *d,int nPop,const char*fname, std::map<std::string,int>
     if(toKeep.count(index)>0){
       // because map index has to start at 1 for count method to work
       d[toKeep[index]-1] = atof(word);
+      
     }
     word = strtok(NULL,delims);
+    
     index++;
+
   }
+
+ 
   free(tmp[1]);
   fclose(fp);
 }
@@ -1518,10 +1526,11 @@ void handler(int s) {
   readDouble1d(N,nPop,Nname,ref.popsToKeep);
   fprintf(flog,"Opening nInd file: %s with K=%d\n",fname,nPop); 
   for(int i=0;i<nPop;i++){
+    fprintf(flog,"Chosen pop %s\n",ref.populations[i]);
     fprintf(flog,"N = %f\n",N[i]);
     fprintf(stderr,"N = %f\n",N[i]);
     // being printed in function to stderr
-    fprintf(flog,"Chosen pop %s\n",ref.populations[i]);
+
   }
   fprintf(stderr,"\n");
   fprintf(flog,"\n");
