@@ -144,22 +144,16 @@ glfunc <- function(x,G_mat,my,pre_norm,geno_test) {
 }
 
 ## generates barplot of admixture proportions with conf intervals
-generateBarplot<-function(admix,sorting,out,quantiles=T){
+generateBarplot<-function(admix,sorting,out){
   margins=c(5.1, 4.1, 8.1, 2.1)
   admix<-admix[,match(sorting,colnames(admix))]
   if(nrow(admix)>10){
     
-    if(quantiles){
-      m<-matrix(0,nrow=2,ncol=ncol(admix))
-      m[1,]<-as.numeric(apply(admix,2,function(x) quantile(x[2:length(x)],probs=c(0.025))))
-      m[2,]<-as.numeric(apply(admix,2,function(x) quantile(x[2:length(x)],probs=c(0.975))))
-    } else{
-      m<-matrix(0,nrow=2,ncol=ncol(admix))
-      m[1,]<-as.numeric(admix[1,]-apply(admix,2,function(x) sqrt(sum((x[-1]-mean(x[-1]))**2)/(length(x[-1])-1))))
-      m[2,]<-as.numeric(admix[1,]+apply(admix,2,function(x) sqrt(sum((x[-1]-mean(x[-1]))**2)/(length(x[-1])-1))))
-    }
+    m<-matrix(0,nrow=2,ncol=ncol(admix))
+    m[1,]<-as.numeric(apply(admix,2,function(x) quantile(x[2:length(x)],probs=c(0.025))))
+    m[2,]<-as.numeric(apply(admix,2,function(x) quantile(x[2:length(x)],probs=c(0.975))))
     
-    bitmap(paste(out,"_",ifelse(quantiles,"quantile_","SE_"),"admixBarplot.png",sep=""),res=300)
+    bitmap(paste(out,"_","quantile_","admixBarplot.png",sep=""),res=300)
     par(mar=margins)
     b1<-barplot(as.numeric(admix[1,]) ,col=as.factor(colnames(admix)),ylim=c(0,1.1))
     
@@ -303,5 +297,4 @@ pop_list<- estimateAdmixPCA(likes=likes,plinkFile=plinkFile,admix=admix,refpops 
 write.table(pop_list$covar, file=paste0(out,'_pca.txt'),quote=F)
 write.table(cbind(rownames(pop_list$covar),c(pop_list$ind,"SAMPLE")), file=paste0(out,'_indi.txt'),quote=F,col=F,row=F)
 generateBarplot(admix=admix,sorting = unique(pop_list$ind),out = out)
-generateBarplot(admix=admix,sorting = unique(pop_list$ind),out = out,quantiles = F)
 PCAplotV2(pop_list$covar,pop_list$indi,admix=admix,out,PCs=sort(as.numeric(unlist(strsplit(PCs,",")))))
