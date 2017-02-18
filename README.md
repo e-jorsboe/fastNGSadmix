@@ -2,6 +2,7 @@
 
 Program for infering admixture proportions and doing PCA with a single NGS sample. Inferences based on reference panel.
 
+For how to use program go to:
 http://www.popgen.dk/software/
  
 Installation:
