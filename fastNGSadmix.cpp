@@ -162,7 +162,14 @@ FILE *openFile(const char* a,const char* b){
     exit(0);
   }
   dumpedFiles.push_back(strdup(c));
+
   FILE *fp = fopen(c,"w");
+  if (not(fp)){
+    fprintf(stderr,"File: %s cannot be created specify valid path\n",c);
+    fflush(stderr);
+    exit(0);
+  } 
+  
   delete [] c;
   return fp;
 }
@@ -692,6 +699,7 @@ void readDouble1d(double *d,int nPop,const char*fname, std::map<std::string,int>
   // secondly goes through the second line with sizes of pops
   word = strtok(tmp[1],delims);
   int index = 0;
+  
   while(word!=NULL){
     if(toKeep.count(index)>0){
       // because map index has to start at 1 for count method to work
@@ -703,6 +711,12 @@ void readDouble1d(double *d,int nPop,const char*fname, std::map<std::string,int>
     index++;
 
   }
+
+  if(index!=orgCol){
+    fprintf(stderr,"nInd has different number of elements between row 1 and 2\n");
+    exit(0);
+  }
+  
 
  
   free(tmp[1]);
@@ -1377,6 +1391,8 @@ void handler(int s) {
   
   //out put files
   FILE *flog=openFile(outfiles,".log");
+
+  fprintf(stderr,"FILE %i\n",flog==NULL);
 
 
   fprintf(stderr,"Input: likes=%s plink=%s K=%d Nname=%s fname=%s outfiles=%s\n",lname,plinkName,nPop,Nname,fname,outfiles);
