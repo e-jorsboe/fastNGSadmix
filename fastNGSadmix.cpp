@@ -1392,9 +1392,6 @@ void handler(int s) {
   //out put files
   FILE *flog=openFile(outfiles,".log");
 
-  fprintf(stderr,"FILE %i\n",flog==NULL);
-
-
   fprintf(stderr,"Input: likes=%s plink=%s K=%d Nname=%s fname=%s outfiles=%s\n",lname,plinkName,nPop,Nname,fname,outfiles);
   fprintf(stderr,"Setup: seed=%d method=%d\n",seed,method);
   if(method==0){
