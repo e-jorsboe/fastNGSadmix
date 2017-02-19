@@ -11,3 +11,9 @@ Installation:
 git clone https://github.com/e-jorsboe/fastNGSadmix.git;
 
 cd fastNGSadmix; make
+
+For the R files the snpStats package is required, it can be obatined thus:
+source("https://bioconductor.org/biocLite.R")
+biocLite("snpStats")
+
+It has been tested for R version 3.2.x and later.
