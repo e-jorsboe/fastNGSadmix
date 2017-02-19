@@ -219,6 +219,7 @@ estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
     }
     if(any(duplicated(GL.raw2[,1]))){    
         print("Duplicate markers in beagle or plinkFile file - fix this!")
+        stop()
     }
 
     ## overlapping sites with ref genos
