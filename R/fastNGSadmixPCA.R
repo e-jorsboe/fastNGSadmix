@@ -131,6 +131,7 @@ if(!all(k<-refpops%in%unique(pl$fam$V1))){
     stop()
 }
 
+ccol <- c("darkgreen","darkorange","goldenrod2","#A6761D","darkred","lightgreen","mistyrose","lightblue")
 grDevices::palette(ccol)
 gar<-grDevices::dev.off()
 require(methods)
@@ -140,12 +141,13 @@ glfunc <- function(x,G_mat,my,pre_norm,geno_test) {
   freq <- my/2
   abc <- (G_mat-my)*(geno_test[,x]-my)*pre_norm
   abcr <- (rowSums(abc))/((freq*(1-freq)))
-  sum(abcr)
+  
+  return(sum(abcr))
 }
 
 ## generates barplot of admixture proportions with conf intervals
 generateBarplot<-function(admix,sorting,out){
-  margins=c(5.1, 4.1, 8.1, 2.1)
+  margins<-c(5.1, 4.1, 8.1, 2.1)
   admix<-admix[,match(sorting,colnames(admix))]
   if(nrow(admix)>10){
     
@@ -176,23 +178,30 @@ generateBarplot<-function(admix,sorting,out){
 
 estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
     
+
     ## first PCA for ref pops based on all SNPs
     geno_test<-pl$geno[ pl$fam[  pl$fam$V1%in%refpops,"V2"],]
     ##snp row::sample col
     geno_test <- t(geno_test)
     ## too many NA, so put NA to 2 (major major) instead of removing column
-    geno_test[is.na(geno_test)] = 2 
+    geno_test[is.na(geno_test)] <- 2 
     my <- rowMeans(geno_test,na.rm=T)
-    freq<-my/2    
+    freq<-my/2
+    ## beacuse some freqs might be zero
+    keep<-freq>0 & freq < 1
+    geno_test<- geno_test[keep,]
+    freq<-freq[keep]
+    my<-my[keep]
     ind <- pl$fam[ pl$fam$V1%in%refpops,"V1"]    
     table(ind)
     ##normalizing the genotype matrix
-    M <- (geno_test-my)/sqrt(freq*(1-freq))      
-    ##M[is.na(M)] <- 2
+    M <- (geno_test-my)/sqrt(freq*(1-freq))
+
     ##get the (almost) covariance matrix
-    Xtmp<-(t(M)%*%M)
+    ## same as Xtmp<-(t(M)%*%M), much more efficient
+    Xtmp<-crossprod(M,M)
     ## normalizing the covariance matrix
-    X<-(1/nrow(geno_test))*Xtmp 
+    X<-(1/nrow(geno_test))*Xtmp
 
     ## if plink files reads and convert to beagle file
     if(plinkFile!=""){
@@ -240,10 +249,17 @@ estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
     geno_test2[is.na(geno_test2)] = 2  
     geno_test2[flip,]<-2-geno_test2[flip,]
     popFreqs2[!flip,]<-1-popFreqs2[!flip,]
-    
-    ## recalculating for the new genotype matrix with individual
+
+    ## again because some freqs might be zero
     my2 <- rowMeans(geno_test2,na.rm=T)
     freq2<-my2/2
+
+    keep2<-freq2>0 & freq2<1
+    GL.raw2<-GL.raw2[keep2,]
+    freq2<-freq2[keep2]
+    my2<-my2[keep2]
+    popFreqs2<-popFreqs2[keep2,]
+    geno_test2<-geno_test2[keep2,]
     
     ## calculating admixture adjusted freqs
     hj <- as.matrix(popFreqs2) %*% t(admix[1,])
@@ -279,10 +295,10 @@ PCAplotV2 = function(cova,ind,admix,out,PCs) {
     ## eigen decomposition of covariance matrix for PCA
     E<-eigen(cova)
     ## extracts chosen PCs
-    PC_12 = round(as.numeric(E$values/sum(E$values))[PCs],3)*100
+    PC_12 <- round(as.numeric(E$values/sum(E$values))[PCs],3)*100
     a <- data.frame(E$vectors[,PCs])
-    a$pop = c(ind,'SAMPLE')
-    colnames(a) = c(paste('PC',1,sep=""),paste('PC',2,sep=""),'pop')
+    a$pop <- c(ind,'SAMPLE')
+    colnames(a) <- c(paste('PC',1,sep=""),paste('PC',2,sep=""),'pop')
     pdf(paste0(out,'_PCAplot.pdf'))
     par(mar=c(5, 4, 4, 8) + 0.1)
     plot(a$PC1[1:(nrow(a)-1)],a$PC2[1:(nrow(a)-1)],xlab=paste('PC',PCs[1],' (%)',PC_12[PCs[1]]),ylab=paste('PC',PCs[2],' (%)',PC_12[2]),col=as.factor(a$pop[1:(nrow(a)-1)]),pch=16,ylim=c(min(a$PC2),max(a$PC2)),xlim=c(min(a$PC1),max(a$PC1)))
