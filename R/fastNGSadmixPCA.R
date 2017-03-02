@@ -137,12 +137,15 @@ gar<-grDevices::dev.off()
 require(methods)
 
 ## used for calculating the covariance entries between input data and ref indis without normalizing
-glfunc <- function(x,G_mat,my,pre_norm,geno_test) {
-  freq <- my/2
-  abc <- (G_mat-my)*(geno_test[,x]-my)*pre_norm
-  abcr <- (rowSums(abc))/((freq*(1-freq)))
-  
-  return(sum(abcr))
+glfunc <- function(x,G_mat,my2,pre_norm,geno_test2) {
+  freq <- my2/2
+  ## calculates (g0-2f)*(g'-2f)*P(g0|X,h), (g1-2f)*(g'-2f)*P(g1|X,h), (g2-2f)*(g'-2f)*P(g2|X,h)
+  ## that is enough as P(g'|X,h) != only when g' is actual genotype, no uncertainty
+  abc <- (G_mat-my2)*(geno_test2[,x]-my2)*pre_norm
+  ## takes sum for each site and divides by 2f(1-f)
+  abcr <- (rowSums(abc))/((2*freq*(1-freq)))
+  ## then takes sum for all sites and divides by number of sites
+  return(sum(abcr)/length(my2))
 }
 
 ## generates barplot of admixture proportions with conf intervals
@@ -178,31 +181,32 @@ generateBarplot<-function(admix,sorting,out){
 
 estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
     
-
     ## first PCA for ref pops based on all SNPs
     geno_test<-pl$geno[ pl$fam[  pl$fam$V1%in%refpops,"V2"],]
     ##snp row::sample col
     geno_test <- t(geno_test)
     ## too many NA, so put NA to 2 (major major) instead of removing column
-    geno_test[is.na(geno_test)] <- 2 
+    geno_test[is.na(geno_test)] = 2 
     my <- rowMeans(geno_test,na.rm=T)
-    freq<-my/2
-    ## beacuse some freqs might be zero
+    freq<-my/2    
+    
     keep<-freq>0 & freq < 1
     geno_test<- geno_test[keep,]
     freq<-freq[keep]
     my<-my[keep]
+    
     ind <- pl$fam[ pl$fam$V1%in%refpops,"V1"]    
     table(ind)
-    ##normalizing the genotype matrix
-    M <- (geno_test-my)/sqrt(freq*(1-freq))
-
+    ##normalizing the genotype matrix, 
+    ## sart because we square both de- and nominator in matrix multi
+    M <- (geno_test-my)/sqrt(2*freq*(1-freq))      
+    ##M[is.na(M)] <- 2
     ##get the (almost) covariance matrix
-    ## same as Xtmp<-(t(M)%*%M), much more efficient
     Xtmp<-crossprod(M,M)
+    ##Xtmp<-(t(M)%*%M)
     ## normalizing the covariance matrix
-    X<-(1/nrow(geno_test))*Xtmp
-
+    X<-(1/nrow(geno_test))*Xtmp 
+    
     ## if plink files reads and convert to beagle file
     if(plinkFile!=""){
         plInput<-plinkV2(paste(plinkFile,sep=""))
@@ -277,16 +281,23 @@ estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
     
     ## calculating covariances between input individual and ref individuals 
     GL_called <- unlist(lapply(colnames(geno_test2),glfunc,G_mat=G_mat,my=my2,pre_norm=pre_norm,geno_test=geno_test2))
-    ## calculating covariances
+    
+    ## calculating covariances, between individual itself
     abc_single <- (G_mat-my2)*(G_mat-my2)*pre_norm
-    abcr_single <- (rowSums(abc_single))/((freq2*(1-freq2)))
-    GL_called_diag <- c(as.numeric(GL_called),sum(abcr_single))   
+    
+    ## takes sum for each site and divides by 2f(1-f)
+    abcr_single <- (rowSums(abc_single))/((2*freq2*(1-freq2)))
+    ## takes big sum and divides by number of sites
+    abcr_single <-sum(abcr_single)/length(my2)
+    
+    GL_called_diag <- c(as.numeric(GL_called),abcr_single)  
     ## normalizing input, putting on last row of data, X is normalized covariance matrix only from ref genos
-    X_1 <- rbind(X,'GL'=(1/nrow(geno_test2))*as.numeric(GL_called))
-    X_2 <- as.data.frame(cbind(X_1,GL=(1/nrow(geno_test2))*GL_called_diag))   
+    X_1 <- rbind(X,'GL'=as.numeric(GL_called))
+    X_2 <- as.data.frame(cbind(X_1,GL=GL_called_diag))   
     ## final normalized covariance matrix
     X_norm <- X_2  
     return(list(covar = X_norm,indi=ind))
+    
 }
 
 
