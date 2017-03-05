@@ -1397,7 +1397,7 @@ void handler(int s) {
   if(method==0){
     fprintf(stderr,"The unaccelerated EM has been chosen\n");
   } else{
-    fprintf(stderr,"The acceleted EM has been chosen\n");
+    fprintf(stderr,"The accelerated EM has been chosen\n");
     tol=1e-7; //stopping criteria
   }
   if(doAdjust==0){
@@ -1414,9 +1414,9 @@ void handler(int s) {
   fprintf(flog,"Input: likes=%s plink=%s K=%d Nname=%s fname=%s outfiles=%s\n",lname,plinkName,nPop,Nname,fname,outfiles);
   fprintf(flog,"Setup: seed=%d method=%d\n",seed,method);
   if(method==0){
-    fprintf(flog,"The unacceleted EM has been chosen\n");
+    fprintf(flog,"The unaccelerated EM has been chosen\n");
   } else{
-    fprintf(flog,"The acceleted EM has been chosen\n");
+    fprintf(flog,"The accelerated EM has been chosen\n");
   }
   if(doAdjust==0){
     fprintf(flog,"The unadjusted method has been chosen\n");
@@ -1570,6 +1570,7 @@ void handler(int s) {
       // do bootstrapping when conv runs done
       bootstrap(dOrg,d,F_orgOrg,F_org,F,nPop); 
       fprintf(stderr,"At this bootstrapping: %i out of: %i\n",b-(nConv-1),nBoot);
+      fprintf(flog,"At this bootstrapping: %i out of: %i\n",b-(nConv-1),nBoot);
     }
     for(nit=1;SIG_COND and nit<maxIter;nit++) {	
       if(doAdjust==0){
