@@ -292,8 +292,8 @@ estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
     
     GL_called_diag <- c(as.numeric(GL_called),abcr_single)  
     ## normalizing input, putting on last row of data, X is normalized covariance matrix only from ref genos
-    X_1 <- rbind(X,'GL'=as.numeric(GL_called))
-    X_2 <- as.data.frame(cbind(X_1,GL=GL_called_diag))   
+    X_1 <- rbind(X,'SAMPLE'=as.numeric(GL_called))
+    X_2 <- as.data.frame(cbind(X_1,SAMPLE=GL_called_diag))   
     ## final normalized covariance matrix
     X_norm <- X_2  
     return(list(covar = X_norm,indi=ind))
@@ -306,6 +306,9 @@ estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
 PCAplotV2 = function(cova,ind,admix,out,PCs) {
     ## eigen decomposition of covariance matrix for PCA
     E<-eigen(cova)
+    ## writes out eigenvectors and values
+    write.table(cbind(rownames(cova),E$vectors),paste0(out,'_eigenvecs.txt'),row=T,quote=F,col=F)
+    write.table(E$values,paste0(out,'_eigenvals.txt'),row=T,quote=F,col=F)
     ## extracts chosen PCs
     PC_12 <- round(as.numeric(E$values/sum(E$values))[PCs],3)*100
     a <- data.frame(E$vectors[,PCs])
@@ -322,7 +325,7 @@ PCAplotV2 = function(cova,ind,admix,out,PCs) {
 }
 
 pop_list<- estimateAdmixPCA(likes=likes,plinkFile=plinkFile,admix=admix,refpops = refpops,out = out)
-write.table(pop_list$covar, file=paste0(out,'_pca.txt'),quote=F)
+write.table(pop_list$covar, file=paste0(out,'_covar.txt'),quote=F)
 write.table(cbind(rownames(pop_list$covar),c(pop_list$ind,"SAMPLE")), file=paste0(out,'_indi.txt'),quote=F,col=F,row=F)
 generateBarplot(admix=admix,sorting = unique(pop_list$ind),out = out)
 PCAplotV2(pop_list$covar,pop_list$indi,admix=admix,out,PCs=sort(as.numeric(unlist(strsplit(PCs,",")))))
