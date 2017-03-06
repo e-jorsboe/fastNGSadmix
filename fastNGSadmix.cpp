@@ -515,8 +515,15 @@ refPanel readRefPanel(const char* fname, bgl &b, std::map <std::string,int> &inc
     exit(0);
   }
 
+
+    
   // for which columns to keep
-  ref.populations = new char*[nPop];
+  if(nPop>0){
+    ref.populations = new char*[nPop];
+  } else{
+    ref.populations = new char*[ncols-6];
+  }
+
   // keep track of which original column it is
   int orgCol = 0;
   // keeps track of which new column (index = newCol-1) has to be above 0 for lookup in map
@@ -525,7 +532,7 @@ refPanel readRefPanel(const char* fname, bgl &b, std::map <std::string,int> &inc
   while(columnID!=NULL){
     orgCol++;
     // first 6 columns not freqs and has to at most K new columns included in ref
-    if(orgCol>6 and newCol<=nPop){
+    if(orgCol>6){
       // if in supplied populations or if no populations supplied include
       if(includedPops.count(columnID)>0 or includedPops.empty()){
 	// prints out which populations chosen
@@ -535,15 +542,11 @@ refPanel readRefPanel(const char* fname, bgl &b, std::map <std::string,int> &inc
 	// so that can translate from org column (where 7th column is first freq column) to new column
 	ref.colsToKeep[orgCol-7] = newCol;
 	newCol++;
-      }
+      } 
     }
     columnID = strtok(NULL,delims);
    }
   
-  // if K smaller than pops in ref K first chosen
-  if((orgCol-6>nPop) and includedPops.empty()){
-    fprintf(stderr,"You have chosen a K smaller than refPanel only %i first ref columns included\n",nPop);
-  }
 
   ref.id = new char*[b.nSites];
   ref.chr = new int[b.nSites];
@@ -1248,7 +1251,6 @@ void info(){
   fprintf(stderr,"Arguments:\n");
   fprintf(stderr,"\t-likes Beagle likelihood filename\n");
   fprintf(stderr,"\t-plink Plink file in the binary bed format\n");
-  fprintf(stderr,"\t-K Number of ancestral populations\n"); 
   fprintf(stderr,"\t-Nname Number of individuals in each reference populations\n");
   fprintf(stderr,"\t-fname Ancestral population frequencies\n");
 
@@ -1257,7 +1259,7 @@ void info(){
   fprintf(stderr,"\t-printFreq print admixture adjusted allele frequencies of reference panel + input individual (1: yes, 0: no (default))\n"); 
 
   fprintf(stderr,"Setup:\n");
-  fprintf(stderr,"\t-whichPops Which populations from the reference panel to include in analysis, must be comma seperated (pop1,pop2,..)\n");
+  fprintf(stderr,"\t-whichPops Which populations from the ref panel to include in analysis, denotes number of populations (nPop) for admixture estimation\n \t if not specified all populations in ref are analyzed, must be comma seperated (pop1,pop2,..)\n");
   fprintf(stderr,"\t-doAdjust Adjusts the frequencies in the reference populations with the input (1: yes (default), 0: no)\n");
   fprintf(stderr,"\t-seed Seed for initial guess in EM and for bootstrap\n"); 
   fprintf(stderr,"\t-method If 0 no acceleration of EM algorithm (1: yes (default), 0: no)\n"); 
@@ -1324,8 +1326,6 @@ void handler(int s) {
     if(strcmp(*argv,"-likes")==0 || strcmp(*argv,"-l")==0) lname=*++argv; //name / char arrays
   
     else if(strcmp(*argv,"-plink")==0 || strcmp(*argv,"-p")==0) plinkName=*++argv;
-    // number of admixture proportions
-    else if(strcmp(*argv,"-K")==0) nPop=atoi(*++argv); 
     // ref panel
     else if(strcmp(*argv,"-fname")==0 || strcmp(*argv,"-f")==0) fname=*++argv; 
     // nInd file
@@ -1392,7 +1392,7 @@ void handler(int s) {
   //out put files
   FILE *flog=openFile(outfiles,".log");
 
-  fprintf(stderr,"Input: likes=%s plink=%s K=%d Nname=%s fname=%s outfiles=%s\n",lname,plinkName,nPop,Nname,fname,outfiles);
+  fprintf(stderr,"Input: likes=%s plink=%s Nname=%s fname=%s outfiles=%s\n",lname,plinkName,Nname,fname,outfiles);
   fprintf(stderr,"Setup: seed=%d method=%d\n",seed,method);
   if(method==0){
     fprintf(stderr,"The unaccelerated EM has been chosen\n");
@@ -1411,7 +1411,7 @@ void handler(int s) {
     fprintf(stderr,"Convergence via difference in Q values chosen, threshold of: %f\n",Qtol);    
   }
 
-  fprintf(flog,"Input: likes=%s plink=%s K=%d Nname=%s fname=%s outfiles=%s\n",lname,plinkName,nPop,Nname,fname,outfiles);
+  fprintf(flog,"Input: likes=%s plink=%s Nname=%s fname=%s outfiles=%s\n",lname,plinkName,Nname,fname,outfiles);
   fprintf(flog,"Setup: seed=%d method=%d\n",seed,method);
   if(method==0){
     fprintf(flog,"The unaccelerated EM has been chosen\n");
@@ -1430,21 +1430,28 @@ void handler(int s) {
   }
 
 
-  if(nPop<2){
-    fprintf(stderr,"Have to specify K, and has to be at least 2, K=%i\n",nPop);
-    fprintf(flog,"Have to specify K, and has to be at least 2, K=%i\n",nPop);
-    info();
+  // to get the populations from ref to be analyzed
+  std::map <std::string,int> includedPops;
+  
+  // if pops are specified, reads which pops and construcs map with those
+  if(pops!=NULL){
+    char* temp = strtok(pops,",");
+    while(temp!=NULL){
+      nPop++;
+      std::string popString(temp,strlen(temp));
+      // check that population does not appear twice here
+      if(includedPops.count(popString)>0){
+	fprintf(stderr,"Same population selected twice with -whichPops, only each population once!\n");
+	fprintf(flog,"Same population selected twice with -whichPops, only each population once!\n");
+	info();
+      }
+      includedPops[popString] = 1;
+      temp = strtok(NULL,",");
+    }   
   }
 
-  // min tolerance for F and Q - so they are not 0
-  errTolStart = errTolMin;
-  errTol = errTolMin;
-    
-  clock_t t = clock();
-  time_t t2 = time(NULL);
-
-  // seed for bootstrapping and random starting points
-  std::srand(seed);
+  // to find out which version of C++
+  //fprintf(stderr,"V: [%ld] ", __cplusplus);
   
   bgl d;
   bgl dOrg;
@@ -1464,36 +1471,41 @@ void handler(int s) {
   fprintf(stderr,"Overlap: of %zu sites between input and ref\n",overlap.size());
   fprintf(flog,"Overlap: of %zu sites between input and ref\n",overlap.size());  
   
-  // to get the populations from ref to be analyzed
-  std::map <std::string,int> includedPops;
   
-  // if pops are specified, reads which pops and construcs map with those
-  if(pops!=NULL){
-    char* temp = strtok(pops,",");
-    while(temp!=NULL){
-      std::string popString(temp,strlen(temp));
-      includedPops[popString] = 1;
-     temp = strtok(NULL,",");
-    }   
-    // checks pops and K do not differ in size
-    if(includedPops.size()!=nPop){
-      fprintf(stderr,"K and population selected differ: K=%i whichPops=%lu, must be equal!\n",nPop,includedPops.size());
-      fprintf(flog,"K and population selected differ: K=%i whichPops=%lu, must be equal!\n",nPop,includedPops.size());
-      info();
-      
-    }
-  }
-  // to find out which version of C++
-  //fprintf(stderr,"V: [%ld] ", __cplusplus);
-    
   // reads in ref Panel
   refPanel ref;
+
+  // if nPop == 0 then read in all of them refs
   ref = readRefPanel(fname,d,includedPops,nPop,overlap);
-  if(nPop>ref.popsToKeep.size()){
-    fprintf(stderr,"K of %i, bigger than populations in ref panel\n",nPop);
+  if(pops==NULL){
+    nPop = ref.popsToKeep.size();
+    // so checks that whichPops has same pops as ref, if whichPops given
+  } else  if(includedPops.size()!=ref.popsToKeep.size()){
+    fprintf(stderr,"Some populations given are not in the ref panel\n");
     info();
   }
+
+  if(nPop<2){
+    fprintf(stderr,"nPop has to be at least 2, nPop=%i\n",nPop);
+    fprintf(flog,"nPop has to be at least 2, nPop=%i\n",nPop);
+    info();
+  }
+  fprintf(stderr,"\n");
+  fprintf(flog,"\n");
+  fprintf(stderr,"nPop=%i\n",nPop);
+  fprintf(flog,"nPop=%i\n",nPop);
+  fprintf(stderr,"\n");
+  fprintf(flog,"\n");
+  // min tolerance for F and Q - so they are not 0
+  errTolStart = errTolMin;
+  errTol = errTolMin;
     
+  clock_t t = clock();
+  time_t t2 = time(NULL);
+
+  // seed for bootstrapping and random starting points
+  std::srand(seed);
+      
   double **F = allocDouble(d.nSites,nPop);
   double **F_new = allocDouble(d.nSites,nPop);
   // F_org is for storing initial freqs from ref panel
@@ -1537,7 +1549,7 @@ void handler(int s) {
   double *N = new double[nPop];  
   // reading nInd, where colsToKeep from ref to read in the same columns as in ref
   readDouble1d(N,nPop,Nname,ref.popsToKeep);
-  fprintf(flog,"Opening nInd file: %s with K=%d\n",fname,nPop); 
+  fprintf(flog,"Opening nInd file: %s with nPop=%d\n",fname,nPop); 
   for(int i=0;i<nPop;i++){
     fprintf(flog,"Chosen pop %s\n",ref.populations[i]);
     fprintf(flog,"N = %f\n",N[i]);
