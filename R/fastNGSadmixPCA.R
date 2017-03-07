@@ -116,6 +116,8 @@ admix<-read.table(qopt,h=T,as.is=T)
 ## refpops are analyzed pops for admixture estimation
 refpops<-colnames(admix)
 
+cols<-as.data.frame(cbind(pop=unique(pl$fam$V1),col=as.integer(as.factor(unique(pl$fam$V1)))))
+
 if(dryrun){
   print(table(pl$fam$V1))
   cat('dryrun must be assign to default, FALSE, to execute FastNGSAdmixPCA\n')
@@ -131,7 +133,7 @@ if(!all(k<-refpops%in%unique(pl$fam$V1))){
     stop()
 }
 
-ccol <- c("darkgreen","darkorange","goldenrod2","#A6761D","darkred","lightgreen","mistyrose","lightblue")
+ccol <- c("darkgreen","darkorange","goldenrod2","#A6761D","darkred","lightgreen","darkblue","lightblue")
 grDevices::palette(ccol)
 gar<-grDevices::dev.off()
 require(methods)
@@ -150,33 +152,34 @@ glfunc <- function(x,G_mat,my2,pre_norm,geno_test2) {
 
 ## generates barplot of admixture proportions with conf intervals
 generateBarplot<-function(admix,sorting,out){
-  margins<-c(5.1, 4.1, 8.1, 2.1)
-  admix<-admix[,match(sorting,colnames(admix))]
-  if(nrow(admix)>10){
-    
-    m<-matrix(0,nrow=2,ncol=ncol(admix))
-    m[1,]<-as.numeric(apply(admix,2,function(x) quantile(x[2:length(x)],probs=c(0.025))))
-    m[2,]<-as.numeric(apply(admix,2,function(x) quantile(x[2:length(x)],probs=c(0.975))))
-    
-    bitmap(paste(out,"_","quantile_","admixBarplot.png",sep=""),res=300)
-    par(mar=margins)
-    b1<-barplot(as.numeric(admix[1,]) ,col=as.factor(colnames(admix)),ylim=c(0,1.1))
-    
-    segments(b1,m[1,],b1,m[2,])
-    segments(b1-0.2,m[1,],b1+0.2,m[1,])
-    segments(b1-0.2,m[2,],b1+0.2,m[2,])
-    par(xpd=T)
-    legend("topright",inset=c(0.0,-0.2),colnames(admix),fill=as.factor(colnames(admix)),cex=1.5)
-    garbage<-dev.off()
-  } else{
-    
-    bitmap(paste(out,"_admixBarplot.png",sep=""),res=300)
-    par(mar=margins)
-    b1<-barplot(as.numeric(admix[1,]) ,col=as.factor(colnames(admix)),ylim=c(0,1.1))
-    par(xpd=T)
-    legend("topright",inset=c(0.0,-0.),colnames(admix),fill=as.factor(colnames(admix)),cex=1.5)
-    garbage<-dev.off()
-  }
+    margins<-c(5.1, 4.1, 8.1, 2.1)
+    admix<-admix[,match(sorting,colnames(admix))]
+    if(nrow(admix)>10){
+        
+        m<-matrix(0,nrow=2,ncol=ncol(admix))
+        m[1,]<-as.numeric(apply(admix,2,function(x) quantile(x[2:length(x)],probs=c(0.025))))
+        m[2,]<-as.numeric(apply(admix,2,function(x) quantile(x[2:length(x)],probs=c(0.975))))
+        
+        bitmap(paste(out,"_","quantile_","admixBarplot.png",sep=""),res=300)
+        par(mar=margins)
+        b1<-barplot(as.numeric(admix[1,]) ,col=cols[ cols$pop%in%colnames(admix),"col"],ylim=c(0,1.1))
+        
+        segments(b1,m[1,],b1,m[2,])
+        segments(b1-0.2,m[1,],b1+0.2,m[1,])
+        segments(b1-0.2,m[2,],b1+0.2,m[2,])
+        par(xpd=T)
+        legend("topright",inset=c(0.0,-0.2),legend=cols[ cols$pop%in%colnames(admix),"pop"],fill=cols[ cols$pop%in%colnames(admix),"col"],cex=1.5)
+        garbage<-dev.off()
+    } else{
+        
+        bitmap(paste(out,"_admixBarplot.png",sep=""),res=300)
+        par(mar=margins)
+        b1<-barplot(as.numeric(admix[1,]) ,col=cols[ cols$pop%in%colnames(admix),"col"],ylim=c(0,1.1))
+        par(xpd=T)
+        legend("topright",inset=c(0.0,-0.2),legend=cols[ cols$pop%in%colnames(admix),"pop"],fill=cols[ cols$pop%in%colnames(admix),"col"],cex=1.5)
+        
+        garbage<-dev.off()
+    }
 }
 
 estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
@@ -202,6 +205,8 @@ estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
     M <- (geno_test-my)/sqrt(2*freq*(1-freq))      
     ##M[is.na(M)] <- 2
     ##get the (almost) covariance matrix
+    print("Calculating covarinace matrix for reference individuals")
+    print("")
     Xtmp<-crossprod(M,M)
     ##Xtmp<-(t(M)%*%M)
     ## normalizing the covariance matrix
@@ -241,6 +246,7 @@ estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
     
     print("The overlap between input and genos is:")
     print(ncol(geno2))
+    print("")
     
     ## those were alleles agree should be flipped like for refPanel, so all genotypes point in same direction
     flip<-sapply(1:nrow(GL.raw2),function(x) GL.raw2[x,2]==bim2[x,6] & GL.raw2[x,3]==bim2[x,5])  
@@ -279,7 +285,10 @@ estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
     size <- nrow(pre_norm)
     G_mat <- data.frame(x=rep(0,size),y=rep(1,size),z=rep(2,size))
     
-    ## calculating covariances between input individual and ref individuals 
+    ## calculating covariances between input individual and ref individuals
+
+    print("Calculating covarinace matrix for input individual")
+    print("")
     GL_called <- unlist(lapply(colnames(geno_test2),glfunc,G_mat=G_mat,my=my2,pre_norm=pre_norm,geno_test=geno_test2))
     
     ## calculating covariances, between individual itself
@@ -316,11 +325,15 @@ PCAplotV2 = function(cova,ind,admix,out,PCs) {
     colnames(a) <- c(paste('PC',1,sep=""),paste('PC',2,sep=""),'pop')
     pdf(paste0(out,'_PCAplot.pdf'))
     par(mar=c(5, 4, 4, 8) + 0.1)
-    plot(a$PC1[1:(nrow(a)-1)],a$PC2[1:(nrow(a)-1)],xlab=paste('PC',PCs[1],' (%)',PC_12[PCs[1]]),ylab=paste('PC',PCs[2],' (%)',PC_12[2]),col=as.factor(a$pop[1:(nrow(a)-1)]),pch=16,ylim=c(min(a$PC2),max(a$PC2)),xlim=c(min(a$PC1),max(a$PC1)))
+
+    pcaColours<-sapply(a$pop[1:(nrow(a)-1)], function(x) cols[ cols$pop==x,"col"])
+    
+    plot(a$PC1[1:(nrow(a)-1)],a$PC2[1:(nrow(a)-1)],xlab=paste('PC',PCs[1],' (%)',PC_12[PCs[1]]),ylab=paste('PC',PCs[2],' (%)',PC_12[2]),col=pcaColours,pch=16,ylim=c(min(a$PC2),max(a$PC2)),xlim=c(min(a$PC1),max(a$PC1)))
     points(a$PC1[nrow(a)],a$PC2[nrow(a)],pch=4,cex=2,lwd=4)
+    print("Input individual ('SAMPLE') is plotted at in PCA plot:")
     print(paste(a$PC1[nrow(a)],a$PC2[nrow(a)]))
     par(xpd=TRUE)
-    legend("topright",inset=c(-0.3,0),legend=unique(as.factor(a$pop[1:(nrow(a)-1)])),fill=unique(as.factor(a$pop[1:(nrow(a)-1)])))
+    legend("topright",inset=c(-0.3,0),legend=unique(as.factor(a$pop[1:(nrow(a)-1)])),fill=unique(pcaColours))
     garbage<-dev.off()
 }
 
