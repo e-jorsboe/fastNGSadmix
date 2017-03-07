@@ -338,6 +338,11 @@ bgl readBeagle(const char* fname, std::map <std::string,int> overlap) {
     fprintf(stderr,"ncols=%d\n",ncols);
     exit(0);
   }
+
+  if(ncols > 6){
+    fprintf(stderr,"Only one individual in beagle file, looks like there are=%d\n",(ncols-3) / 3);
+    exit(0);
+  }
   ret.nInd = (ncols-3)/3;
   std::vector<char*> tmp;
   while(gzgets(fp,buf,LENS)){
@@ -405,6 +410,10 @@ bgl readBeagle(const char* fname, std::map <std::string,int> overlap) {
 bgl readPlinkToBeagle(const char* plinkName, std::map <std::string,int> overlap) {
 
   plink* pl = readplink(plinkName);
+  if(pl->fam.individuals > 1){
+    fprintf(stderr,"More than one individual in input plink file - should only be one! \n");
+    exit(0);
+  }
   bgl b = allocBeagle(overlap.size());
   b.nSites = overlap.size();
   // can only have one individual is this program
