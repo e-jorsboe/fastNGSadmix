@@ -31,9 +31,9 @@ I have provided some script for running iAdmix with genotype likelihoods directl
 
 First download the iAdmix software.
 
-Then a .beagle file can be converted to the iAdmix genotype likelihoods file format via beagle2GLL.R:
+Then a .beagle file can be converted to the iAdmix genotype likelihoods file format via beagle2GL2.R:
 
-Rscript beagle2GLL.R test.beagle
+Rscript beagle2GL2.R test.beagle
 
 And then run with the .GL2 file in iAdmix using runancestryV2.py:
 
