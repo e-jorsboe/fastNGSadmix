@@ -5,7 +5,7 @@ CXX := g++
 
 FLAGS := -O3 -lz -lpthread
 
-srcfiles := $(shell find -maxdepth 1 -iname "*V2.c")
+srcfiles := $(shell find -maxdepth 1 -iname "*V3.cpp")
 objects  := $(patsubst %.c, %.o, $(srcfiles))
 hfiles  := $(patsubst %.c, %.h, $(srcfiles))
 
