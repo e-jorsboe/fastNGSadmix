@@ -71,29 +71,14 @@ int validDouble(std::string someString){
 }
 
 
-double **allocDouble(size_t x,size_t y){
-  double **ret = new double*[x];
-  for(size_t i=0;i<x;i++){
-    ret[i] = new double[y];
-  }
-  return ret;
-}
 
-void dalloc(double **ret,size_t x){
-  for(size_t i=0;i<x;i++){
-    delete [] ret[i] ;
-  }
-  delete [] ret;
-}
-
-
-void minus1d(double *fst,double *sec,size_t x,double *res){
+void minus1d(std::vector<double> &fst, std::vector<double> &sec,size_t x, std::vector<double> &res){
   for(size_t i=0;i<x;i++){
       res[i] = fst[i]-sec[i];
     }
 }
 
-void minus(double **fst,double **sec,size_t x,size_t y,double **res){
+void minus(std::vector< std::vector<double> >  &fst,std::vector< std::vector<double> > &sec,size_t x,size_t y,std::vector< std::vector<double> > &res){
   for(size_t i=0;i<x;i++){
     for(size_t j=0;j<y;j++){
       res[i][j] = fst[i][j]-sec[i][j];
@@ -101,7 +86,7 @@ void minus(double **fst,double **sec,size_t x,size_t y,double **res){
   }
 }
 
-double sumSquare(double **mat,size_t x,size_t y){
+double sumSquare(std::vector< std::vector<double> >  &mat,size_t x,size_t y){
   double tmp=0;
   for(size_t i=0;i<x;i++){
     for(size_t j=0;j<y;j++){
@@ -111,7 +96,7 @@ double sumSquare(double **mat,size_t x,size_t y){
   return tmp;
 }
 
-double sumSquare1d(double *mat,size_t x){
+double sumSquare1d(std::vector<double >  &mat,size_t x){
   double tmp=0;
   for(size_t i=0;i<x;i++){
       tmp += mat[i]*mat[i];
@@ -119,7 +104,7 @@ double sumSquare1d(double *mat,size_t x){
   return tmp;
 }
 
-double calcThres(double *d1,double *d2, int x){
+double calcThres(std::vector<double>  &d1, std::vector<double>  &d2, int x){
   // finds the largest difference between 2 arrays
   // arrays has dimention x times y
   double diff=fabs(d1[0]-d2[0]);
@@ -135,7 +120,7 @@ double calcThres(double *d1,double *d2, int x){
 
 // function for keeping sure Q values do not become
 // 0.0 as then division by 0 might occur, errTol is limit
-void map2domainQ(double* Q, int nPop){  
+void map2domainQ(std::vector<double> &Q, int nPop){  
   double sum=0;
   for(int k=0;k<nPop;k++){
     if(Q[k]<errTol){
@@ -153,7 +138,7 @@ void map2domainQ(double* Q, int nPop){
 
 // function for keeping sure F values do not become
 // 0.0 as then division by 0 might occur, errTol is limit
-void map2domainF(double** F, int nSites, int nPop){
+void map2domainF(std::vector< std::vector<double> > &F, int nSites, int nPop){
   for(int s=0;s<nSites;s++)
     for(int k=0;k<nPop;k++){
       if(F[s][k]<errTol){
@@ -174,62 +159,79 @@ int fexists(const char* str){
   return (stat(str, &buffer )==0 ); 
 }
 
-std::vector<char *> dumpedFiles;
+std::vector<std::string> dumpedFiles;
 FILE *openFile(const char* a,const char* b){
-  if(0)
+  if(0){
     fprintf(stderr,"[%s] %s %s",__FUNCTION__,a,b);
-  char *c = new char[strlen(a)+strlen(b)+1];
-  strcpy(c,a);
-  strncat(c,b,strlen(b));
-  fprintf(stderr,"\t-> Dumping file: %s\n",c);
-  if(0&&fexists(c)){
-    fprintf(stderr,"File: %s exists will exist\n",c);
+  }
+  std::string c1(a, strlen(a));
+  std::string c2(b, strlen(b));
+
+  std::string c = c1 + c2;
+  fprintf(stderr,"\t-> Dumping file: %s\n",c.c_str());
+  if(0&&fexists(c.c_str())){
+    fprintf(stderr,"File: %s exists will exist\n",c.c_str());
     fflush(stderr);
     exit(0);
   }
-  dumpedFiles.push_back(strdup(c));
 
-  FILE *fp = fopen(c,"w");
+  dumpedFiles.push_back(c);
+
+  FILE *fp = fopen(c.c_str(),"w");
   if (not(fp)){
-    fprintf(stderr,"File: %s cannot be created specify valid path\n",c);
+    fprintf(stderr,"File: %s cannot be created specify valid path\n",c.c_str());
     fflush(stderr);
     exit(0);
   } 
   
-  delete [] c;
+  
   return fp;
 }
 
 gzFile openFileGz(const char* a,const char* b){
-  if(0)
+  if(0){
     fprintf(stderr,"[%s] %s %s",__FUNCTION__,a,b);
-  char *c = new char[strlen(a)+strlen(b)+1];
-  strcpy(c,a);
-  strncat(c,b,strlen(b));
+  }
 
+  std::string c1(a, strlen(a));
+  std::string c2(b, strlen(b));
+
+  std::string c = c1 + c2;
   
-  fprintf(stderr,"\t-> Dumping file: %s\n",c);
-  if(0&&fexists(c)){
-    fprintf(stderr,"File: %s exists will exist\n",c);
+  fprintf(stderr,"\t-> Dumping file: %s\n",c.c_str());
+  if(0&&fexists(c.c_str())){
+    fprintf(stderr,"File: %s exists will exist\n",c.c_str());
     fflush(stderr);
     exit(0);
   }
-  dumpedFiles.push_back(strdup(c));
-  gzFile fp = gzopen(c,"w");
-  delete [] c;
+  
+  dumpedFiles.push_back(c);
+  gzFile fp = gzopen(c.c_str(),"w");
+
   return fp;
 }
 
 
 
 
+// 0 indexed
+double getGeno(const std::vector<double> &g, int row, int col){
+  if(col>2){
+    fprintf(stderr,"only one individaul in beagle file, thus only 3 columns \n");
+    exit(0);
+  }
+  return(g[3*row+col]);
+}
 
 
 //some struct with all the data from the beagle file
 typedef struct{
-  double **genos;
-  char *major;
-  char *minor;
+  std::vector<double> genos;
+
+
+  
+  std::vector<char> major;
+  std::vector<char> minor;
   // for snp ids, chr_pos
   std::vector<std::string> id;
   int nSites;
@@ -241,48 +243,18 @@ typedef struct{
 }bgl;
 
 
-bgl allocBeagle(int nSites){
-  bgl b;
-  b.nSites = nSites;
-  b.major = new char[nSites];
-  b.minor = new char[nSites];
-
-  b.nInd = 1;
-  b.genos= allocDouble(nSites,3);
-  
-  for(int s=0;SIG_COND&& (s<nSites);s++){
-    b.major[s] = '0';
-    b.minor[s] = '0';
-  
-  }
-  return(b);
-} 
-      
-//utility function for cleaning up out datastruct
-void dallocBeagle(bgl &b){
-  for(int i=0;i<b.nSites;i++){
-    delete [] b.genos[i];  
-
-  }
-  
-  // run through all the keys and then free them
-  delete [] b.minor;
-  delete [] b.major;
-  delete [] b.genos;
-
-}
 
 // refPanel struct for reading in refPanel with header
 typedef struct{
   std::vector<std::string> id;
 
-  int *chr;
-  int *pos;
+  std::vector<int> chr;
+  std::vector<int> pos;
   std::vector<std::string> name;
 
-  char *A0;
-  char *A1;
-  double **freqs;
+  std::vector<char> A0;
+  std::vector<char> A1;
+  std::vector< std::vector<double> > freqs;
   int refSites;
   std::vector<std::string> populations;
 
@@ -294,16 +266,6 @@ typedef struct{
 }refPanel;
  
 
-void dallocRefPanel(refPanel &ref, int nPop){
-  for(int i=0;i<ref.refSites;i++){
-    delete [] ref.freqs[i];
-  }
-  delete [] ref.chr;
-  delete [] ref.pos;
-  delete [] ref.A0;
-  delete [] ref.A1;
-  delete [] ref.freqs;
-}
 
 
 
@@ -338,7 +300,7 @@ char intToChar(char intLike){
 */
 
 
-bgl readBeagle(const char* fname, std::map <std::string,int> overlap) {
+bgl readBeagle(const char* fname, const std::map <std::string,int> &overlap) {
   const char *delims = "\t \n";
   gzFile fp = NULL;
   // checking if file can be opened
@@ -367,10 +329,6 @@ bgl readBeagle(const char* fname, std::map <std::string,int> overlap) {
   ret.nInd = (ncols-3)/3;
 
   ret.nSites = overlap.size();
-  ret.major = new char[overlap.size()];
-  ret.minor = new char[overlap.size()];
-
-  ret.genos= new double*[overlap.size()];
 
   int refIndex = 0;
   int bglIndex = 0;
@@ -380,6 +338,15 @@ bgl readBeagle(const char* fname, std::map <std::string,int> overlap) {
     // puts id of all sites in map for fast lookup
     char* bglID = strtok(buf,delims);
     std::string bglIDstring(bglID, strlen(bglID));
+    
+    char A0 = intToChar(strtok(NULL,delims)[0]);
+    char A1 = intToChar(strtok(NULL,delims)[0]);
+
+    if( tolower(A0) < tolower(A1) ){
+      bglIDstring = bglIDstring + "_" + A0 + "_" + A1;
+    } else{
+      bglIDstring = bglIDstring + "_" + A1 + "_" + A0;
+    }
     ret.idMap[bglIDstring] = 1;
   
     //then loop over the vector and parsing every line  
@@ -388,27 +355,26 @@ bgl readBeagle(const char* fname, std::map <std::string,int> overlap) {
 
       ret.id.push_back(bglIDstring);
       // because allele might be coded 0,1,2,3
-      ret.major[refIndex] = intToChar(strtok(NULL,delims)[0]);
-      ret.minor[refIndex] = intToChar(strtok(NULL,delims)[0]);
-      ret.genos[refIndex] = new double[3*ret.nInd];
+      ret.major.push_back(A0);
+      ret.minor.push_back(A1);
+      double tmpS = 0.0;
       for(int i=0;i<ret.nInd*3;i++){
-	ret.genos[refIndex][i] = atof(strtok(NULL,delims));
-	if(ret.genos[refIndex][i]<0){
+	double gl = atof(strtok(NULL,delims));
+	ret.genos.push_back(gl);
+	if(gl<0){
 	  fprintf(stderr,"Likelihoods must be positive\n");
-	  fprintf(stderr,"site %d ind %d geno %d has value %f\n",bglIndex,int(i*1.0/3),i%3,ret.genos[refIndex][i]);
+	  fprintf(stderr,"site %d ind %d geno %d has value %f\n",bglIndex,int(i*1.0/3),i%3,getGeno(ret.genos,refIndex,i));
 	  exit(0);
 	}
-      }
-      for(int i=0;i<ret.nInd;i++){
-	double tmpS = 0.0;
-      for(int g=0;g<3;g++)
-	tmpS += ret.genos[refIndex][i*3+g];
-      if(!(tmpS>0)){
+	tmpS+=gl;
+      
+      if(i==2 and !(tmpS>0)){
 	fprintf(stderr,"The sum of likelihoods for a genotypes must be positive\n");
 	fprintf(stderr,"individual %d site %d has sum %f\n",i,bglIndex,tmpS);
 	exit(0);
-      } 
       }
+      }
+    
       // counts which line of overlapping sites between bgl and ref panel
       refIndex++;  
     }
@@ -426,14 +392,14 @@ bgl readBeagle(const char* fname, std::map <std::string,int> overlap) {
 
 
 // read in plink file and converts to a bgl struct (beagle file)
-bgl readPlinkToBeagle(const char* plinkName, std::map <std::string,int> overlap) {
+bgl readPlinkToBeagle(const char* plinkName, const std::map <std::string,int> &overlap) {
 
   plink pl = readplink(plinkName);
   if(pl.fam.individuals > 1){
     fprintf(stderr,"More than one individual in input plink file - should only be one! \n");
     exit(0);
   }
-  bgl b = allocBeagle(overlap.size());
+  bgl b;
   b.nSites = overlap.size();
   // can only have one individual is this program
   b.nInd = 1; 
@@ -453,22 +419,25 @@ bgl readPlinkToBeagle(const char* plinkName, std::map <std::string,int> overlap)
     }
     
     if(pl.d[0][i]==0){
-      b.genos[beagleIndex][2]=1.0     ;
-      b.genos[beagleIndex][1]=0.0;
-      b.genos[beagleIndex][0]=0.0;
+      b.genos.push_back(0.0);
+      b.genos.push_back(0.0);
+      b.genos.push_back(1.0);
       
     } else if(pl.d[0][i]==1){
-      b.genos[beagleIndex][2]=0.0;
-      b.genos[beagleIndex][0]=0.0;
-      b.genos[beagleIndex][1]=1.0;
+      b.genos.push_back(0.0);
+      b.genos.push_back(1.0);
+      b.genos.push_back(0.0);
+
     } else if(pl.d[0][i]==2){
-      b.genos[beagleIndex][2]=0.0;
-      b.genos[beagleIndex][1]=0.0;
-      b.genos[beagleIndex][0]=1.0;
+      
+      b.genos.push_back(1.0);
+      b.genos.push_back(0.0);
+      b.genos.push_back(0.0);
+
     }
 
-    b.major[beagleIndex]=pl.bim.major[i];
-    b.minor[beagleIndex]=pl.bim.minor[i];
+    b.major.push_back(pl.bim.major[i]);
+    b.minor.push_back(pl.bim.minor[i]);
     b.id.push_back(pl.bim.id[i]);
     // stores id of all sites from plink file
     b.idMap[pl.bim.id[i]] = 1;
@@ -513,7 +482,7 @@ void readDouble(double **d,int x,int y,const char*fname,int neg){
 
 // function for reading in ref panel, has to have format id chr pos name A0_freq A1 pop1 pop2 ... (freq has to be of A0 allele)
 
-refPanel readRefPanel(const char* fname, bgl &b, std::map <std::string,int> includedPops, int nPop, std::map <std::string,int> overlap) {
+refPanel readRefPanel(const char* fname, bgl b, const std::map <std::string,int> &includedPops, int nPop, const std::map <std::string,int> &overlap) {
   const char *delims = "\t \n";
   gzFile fp = NULL;
   if(Z_NULL==(fp=gzopen(fname,"r"))){
@@ -571,13 +540,14 @@ refPanel readRefPanel(const char* fname, bgl &b, std::map <std::string,int> incl
     exit(0);
   }
 
-  ref.chr = new int[b.nSites];
-  ref.pos = new int[b.nSites];
-
-  ref.A0 = new char[b.nSites];
-  ref.A1 = new char[b.nSites];
-  ref.freqs = new double*[b.nSites];
   ref.refSites = b.nSites;
+  
+  ref.freqs.resize(b.nSites);  // resize top level vector
+  for (int i = 0; i < b.nSites; i++){
+    ref.freqs[i].resize(ref.colsToKeep.size()); // the contained vectors
+  }
+  
+
 
   gzFile fp1 = NULL;
   fp1=gzopen(fname,"r");
@@ -592,22 +562,38 @@ refPanel readRefPanel(const char* fname, bgl &b, std::map <std::string,int> incl
     // looking at id value chr_pos for detecting overlap
     char* id = strtok(buf,delims);
     std::string stringID(id,strlen(id));
+    
+    int refChr = atoi(strtok(NULL,delims));
+    int refPos = atoi(strtok(NULL,delims));
+    
+    char* name = strtok(NULL,delims);
+    std::string stringName(name,strlen(name));
+
+    // ref has A,C,G,T alleles
+    char A0 = intToChar(strtok(NULL,delims)[0]);
+    char A1 = intToChar(strtok(NULL,delims)[0]);
+
+    // sorting also with alleles
+    if( tolower(A0) < tolower(A1) ){
+      stringID = stringID + "_" + A0 + "_" +A1;
+    } else{
+      stringID = stringID + "_" + A1 + "_" + A0;
+    }
+    
     // check if site is in overlap with beagle file
     // otherwise continues to next site in ref
     if(overlap.count(stringID) > 0){
 
       ref.id.push_back(stringID);    
     
-      ref.chr[refIndex] = atoi(strtok(NULL,delims));
-      ref.pos[refIndex] = atoi(strtok(NULL,delims));
+      ref.chr.push_back(refChr);
+      ref.pos.push_back(refPos);
 
-      char* name = strtok(NULL,delims);
-      std::string stringName(name,strlen(name));
       ref.name.push_back(stringName);
       // ref has A,C,G,T alleles
-      ref.A0[refIndex] = strtok(NULL,delims)[0];
-      ref.A1[refIndex] = strtok(NULL,delims)[0];
-      ref.freqs[refIndex] = new double[ref.colsToKeep.size()];    
+      ref.A0.push_back(A0);
+      ref.A1.push_back(A1);
+      
       //    reading in ref freqs
       for(int i=0;i<(ncols-6);i++){
 	// check if org column to keep and thereby pop to keep in ref
@@ -693,51 +679,55 @@ void readDoubleGZ(double **d,int nSites,int nPop,const char*fname,int neg){
 }
 
 // for reading number of individuals in each ref - nInd file
-void readDouble1d(double *d,int nPop,const char*fname, std::map<std::string,int> popsToKeep){
+void readDouble1d(std::vector <double> &d,int nPop,const char*fname, std::map<std::string,int> popsToKeep){
   fprintf(stderr,"Opening nInd file: %s with K=%d\n",fname,nPop);
   const char*delims=" \n\t";
-  FILE *fp = NULL;
-  if((fp=fopen(fname,"r"))==NULL){
+  gzFile fp = NULL;
+  if((fp=gzopen(fname,"r"))==NULL){
     fprintf(stderr,"cont open:%s\n",fname);
     exit(0);
   }
   int lens=1000000 ;
   char buf[lens];
-   
+
+  d.assign(nPop,0);
+  
   std::vector<char*> tmp;
   // keeps track of org index of pop to keep and new index of pop to keep
   std::map<int,int> toKeep;
-  while(fgets(buf,lens,fp)){
-    tmp.push_back(strdup(buf));
-  }
 
-  // first goes through the first line with names of pops, finds which should be included
-  char * word = strtok(tmp[0],delims);
-  // keeps track of which value at in nInd file, newCol has to be index+1, because has to be > 0 for lookup
+  gzgets(fp,buf,LENS);
+    
+  // looking at id value chr_pos for detecting overlap
+  char* word = strtok(buf,delims);
+  std::string stringID(word,strlen(word));
   int orgCol = 0;
-
+  
   while(word!=NULL){
     std::string stringWord(word,strlen(word));
-    if(popsToKeep.count(stringWord)>0){
-    
+    if(popsToKeep.count(stringWord)>0){	
       // creates map of <nInd index, ref index> so can map from nInd order to ref order
       // so if first element in nInd is second in ref
       // the d array with nInd values has second element equal to nInd first value
-      toKeep[orgCol] = popsToKeep[word];
-
+      toKeep[orgCol] = popsToKeep[stringWord];	
     }
     word = strtok(NULL,delims); 
     orgCol++;
   }
+     
+  // first goes through the first line with names of pops, finds which should be included  
+  // keeps track of which value at in nInd file, newCol has to be index+1, because has to be > 0 for lookup
+
   if(toKeep.size()!=popsToKeep.size()){
     fprintf(stderr,"nInd and ref panel do not have same size!\n");
     exit(0);
   }
-  free(tmp[0]);
-  // secondly goes through the second line with sizes of pops
-  word = strtok(tmp[1],delims);
-  int index = 0;
   
+  int index = 0;
+  gzgets(fp,buf,LENS);
+    
+  word = strtok(buf,delims);    
+    
   while(word!=NULL){
     if(toKeep.count(index)>0){
       // because map index has to start at 1 for count method to work
@@ -747,21 +737,18 @@ void readDouble1d(double *d,int nPop,const char*fname, std::map<std::string,int>
     word = strtok(NULL,delims);
     
     index++;
-
+    
   }
-
+  
   if(index!=orgCol){
     fprintf(stderr,"nInd has different number of elements between row 1 and 2\n");
     exit(0);
   }
   
-
- 
-  free(tmp[1]);
-  fclose(fp);
+  gzclose(fp);
 }
 
-void printDouble(double **ret,size_t x,size_t y, int highestLike, int nConv, std::vector<std::string> populations ,FILE *fp){
+void printDouble(const std::vector< std::vector<double> > &ret,size_t x,size_t y, int highestLike, int nConv, const std::vector<std::string> &populations ,FILE *fp){
   for(size_t i=0;i<x;i++){
     if(i==0){
       for(size_t j=0;j<y;j++){
@@ -785,17 +772,17 @@ void printDouble(double **ret,size_t x,size_t y, int highestLike, int nConv, std
 }
 
 
-void printDoubleGz(double **ret,size_t x, size_t y, std::vector<std::string> id, std::vector<std::string> populations ,gzFile fp){
+void printDoubleGz(const std::vector< std::vector<double> > &ret, size_t x, size_t y, const std::vector<std::string> &id, const std::vector<std::string> &populations ,gzFile fp){
 
  for(size_t i=0;i<x;i++){
     if(i==0){
       gzprintf(fp,"id ");
       for(size_t j=0;j<y;j++){
-	gzprintf(fp,"%s ",populations[j]);
+	gzprintf(fp,"%s ",populations[j].c_str());
       }
       gzprintf(fp,"\n");
     }
-    gzprintf(fp,"%s ",id[i]);
+    gzprintf(fp,"%s ",id[i].c_str());
     for(size_t j=0;j<y;j++){
       gzprintf(fp,"%.4f ",1-ret[i][j]);
     }
@@ -804,10 +791,9 @@ void printDoubleGz(double **ret,size_t x, size_t y, std::vector<std::string> id,
 }
 
 // calculate log(likelihood) from likelihood function
-double likelihood(double* Q, double** F,int nSites, int nPop,double **genos){
+double likelihood(const std::vector<double> &Q, const std::vector< std::vector<double> > &F,int nSites, int nPop, const std::vector<double> &genos){
   double prod_ind = 0.0;
   for(int j = 0; j < nSites; j++) {
-    double *gg = genos[j];
     double freq = 0.0;
     for(int k = 0; k < nPop; k++) {
       freq += (F[j][k])*Q[k];
@@ -815,31 +801,31 @@ double likelihood(double* Q, double** F,int nSites, int nPop,double **genos){
     // has to be like this, as I sort freqs
     // prior to running this program
     double f = freq;
-    double sum = gg[0] * f * f;
-    sum += gg[1]*2*f*(1-f);
-    sum += gg[2]*(1-f)*(1-f);
+    double sum = getGeno(genos,j,0)* f * f;
+    sum +=  getGeno(genos,j,1)*2*f*(1-f);
+    sum +=  getGeno(genos,j,2)*(1-f)*(1-f);
     prod_ind += log(sum); 
   }
   return prod_ind;
 }
 
 // does bootstrapping sampling nSites random sites with replacement
-void bootstrap(bgl dOrg, bgl d, double** F_orgOrg, double** F_org, double** F, int nPop) {
-  for(int j=0;j<dOrg.nSites;j++){
+void bootstrap(const std::vector<double> &genosOrg, std::vector<double> &genos, const std::vector< std::vector<double> > &F_orgOrg, std::vector< std::vector<double> > &F_org, std::vector< std::vector<double> > &F, int nPop, int nSites) {
+  for(int j=0;j<nSites;j++){
     // generate random int from 0 to (nSites-1)
-    int row = std::rand() % dOrg.nSites;
+    int row = std::rand() % nSites;
+    genos[3*j+0] = getGeno(genosOrg,row,0);
+    genos[3*j+1] = getGeno(genosOrg,row,1);
+    genos[3*j+2] = getGeno(genosOrg,row,2);
     for(int k = 0; k < nPop; k++) {
       F[j][k] = F_orgOrg[row][k];
       F_org[j][k] = F_orgOrg[row][k];
-      if(k<=2){
-	d.genos[j][k] = dOrg.genos[row][k];
-      }
     }
   }
 }
 
 // em algorithm not adjusting F at every step
-void emUnadjusted(double* Q, double** F, int nSites, int nPop,double **genos,double *Q_1) {
+void emUnadjusted(std::vector<double> &Q, std::vector< std::vector<double> > &F, int nSites, int nPop, const std::vector<double> &genos, std::vector<double> &Q_1) {
   double sumAG[nPop];
   double sumBG[nPop];
   // makes sure neither F nor Q has 0 values
@@ -858,9 +844,9 @@ void emUnadjusted(double* Q, double** F, int nSites, int nPop,double **genos,dou
       fpart += F[j][k] * Q[k];
       fpartInv += (1-F[j][k]) * Q[k];
       // pre GL (sites x 3) * (adjusted freq)
-      double pp0=(fpartInv)*(fpartInv)*genos[j][2];
-      double pp1=2*(fpartInv)*fpart*  genos[j][1];
-      double pp2=fpart*fpart*        genos[j][0];
+      double pp0=(fpartInv)*(fpartInv)*getGeno(genos,j,2);
+      double pp1=2*(fpartInv)*fpart*  getGeno(genos,j,1);
+      double pp2=fpart*fpart*        getGeno(genos,j,0);
       double sum=pp0+pp1+pp2;
       // for calculating H range 0-2, this is the expected genotype	  
       expGG =(pp1+2*pp2)/sum;
@@ -873,11 +859,14 @@ void emUnadjusted(double* Q, double** F, int nSites, int nPop,double **genos,dou
   for(int k=0;k<nPop;k++){ 
     Q_1[k]=(sumAG[k] + sumBG[k])/(2.0*nSites);
   }
+
+
+  
   map2domainQ(Q_1,nPop);
 }
 
 // em algorithm adjusting F at every step
-void em(double* Q, double** F, int nSites, double* nInd, int nPop,double **genos,double **F_1,double *Q_1, double** F_org) {
+void em(std::vector<double> &Q, std::vector< std::vector<double> > &F, int nSites, const std::vector<double> &nInd, int nPop, const std::vector<double> &genos, std::vector< std::vector<double> > &F_1, std::vector<double> &Q_1, std::vector< std::vector<double> > &F_org) {
   double sumAG[nPop];
   double sumBG[nPop];
   // makes sure neither F nor Q has 0 values
@@ -903,9 +892,9 @@ void em(double* Q, double** F, int nSites, double* nInd, int nPop,double **genos
       fpart += F[j][k] * Q[k];
       fpartInv += (1-F[j][k]) * Q[k];
       // pre GL (sites x 3) * (adjusted freq)
-      double pp0=(fpartInv)*(fpartInv)*genos[j][2];
-      double pp1=2*(fpartInv)*fpart*  genos[j][1];
-      double pp2=fpart*fpart*        genos[j][0];
+      double pp0=(fpartInv)*(fpartInv)*getGeno(genos,j,2);
+      double pp1=2*(fpartInv)*fpart*  getGeno(genos,j,1);
+      double pp2=fpart*fpart*        getGeno(genos,j,0);
       double sum=pp0+pp1+pp2;
       // for calculating H range 0-2, this is the expected genotype	
       expGG=(pp1+2*pp2)/sum;
@@ -928,12 +917,14 @@ void em(double* Q, double** F, int nSites, double* nInd, int nPop,double **genos
   for(int k=0;k<nPop;k++){ 
     Q_1[k]=(sumA[k]+sumB[k])/(2.0*nSites);
   }
+
+  
   map2domainQ(Q_1,nPop);
   map2domainF(F_1,nSites,nPop);
 }
 
 
-int emAccelUnadjustedV2(const bgl d, double* nInd, int nPop, double** F,double* Q,double* &Q_new, double** F_org, int nit, int boot, int Qconv, double Qtol, double tol){
+int emAccelUnadjustedV2(const std::vector<double> &genos, const std::vector<double> &nInd, int nPop, std::vector< std::vector<double> > &F, std::vector<double> &Q, std::vector<double> &Q_new, int nit, int boot, int Qconv, double Qtol, double tol, int nSites){
  
   double stepMin = 1;
   double stepMax0 = 1;
@@ -941,52 +932,43 @@ int emAccelUnadjustedV2(const bgl d, double* nInd, int nPop, double** F,double* 
   double mstep = 4;
   double objfnInc = 1;
   //we make these huge struc
-  static double *Q_em1 = NULL;
-  static double *Q_diff1 = NULL;
-  static double *Q_em2 = NULL;
-  static double *Q_diff2 = NULL;
-  static double *Q_diff3 = NULL;
-  static double *Q_tmp = NULL;
-  static double *Q_tmpDiff = NULL;
+  static std::vector<double> Q_em1;
+  static std::vector<double> Q_diff1;
+  static std::vector<double> Q_em2;
+  static std::vector<double> Q_diff2;
+  static std::vector<double> Q_diff3;
+  static std::vector<double> Q_tmp;
+  static std::vector<double> Q_tmpDiff;
   
-  if(Q_em1==NULL){
-    Q_em1 = new double[nPop];
-    Q_diff1 = new double[nPop];
-    Q_em2 = new double[nPop];
-    Q_diff2 = new double[nPop];
-    Q_diff3 = new double[nPop];
-    Q_tmp = new double[nPop];
-    Q_tmpDiff = new double[nPop];
+
+  if(Q_em1.empty()){
+    Q_em1.assign(nPop,0);
+    Q_diff1.assign(nPop,0);
+    Q_em2.assign(nPop,0);
+    Q_diff2.assign(nPop,0);
+    Q_diff3.assign(nPop,0);
+    Q_tmp.assign(nPop,0);
+    Q_tmpDiff.assign(nPop,0);
 
   }
-  //should cleanup and exit
-  if(Q==NULL){
-    delete [] Q_em1;
-    delete [] Q_em2;
-    delete [] Q_diff1;
-    delete [] Q_diff2;
-    delete [] Q_diff3;
-    delete [] Q_tmp;
-    delete [] Q_tmpDiff;
-    return 0;
-  }
- 
   // first EM run
-  emUnadjusted(Q, F, d.nSites, nPop, d.genos, Q_em1);
+  emUnadjusted(Q, F, nSites, nPop, genos, Q_em1);
+
+
   minus1d(Q_em1,Q,nPop,Q_diff1);
   double sr2 = sumSquare1d(Q_diff1,nPop);
   // checks if convergence
   if(sqrt(sr2)<tol or (calcThres(Q,Q_em1,nPop) < Qtol and Qconv>0)){
-    //fprintf(stderr,"like is %f\n",likelihood(Q_new, F, d.nSites, nPop,d.genos));    
+    //fprintf(stderr,"like is %f\n",likelihood(Q_new, F, nSites, nPop,genos));    
     return 0;  
   }
   // second EM run
-  emUnadjusted(Q_em1, F, d.nSites, nPop, d.genos, Q_em2);
+  emUnadjusted(Q_em1, F, nSites, nPop, genos, Q_em2);
   minus1d(Q_em2,Q_em1,nPop,Q_diff2);
   double sq2 = sumSquare1d(Q_diff2,nPop);
   // checks if convergence - a second time
   if(sqrt(sq2)<tol  or (calcThres(Q_em1,Q_em2,nPop) < Qtol and Qconv>0)){
-    //fprintf(stderr,"like is %f\n",likelihood(Q_new, F, d.nSites, nPop,d.genos));
+    //fprintf(stderr,"like is %f\n",likelihood(Q_new, F, nSites, nPop,genos));
     return 0;
   }
   minus1d(Q_diff2,Q_diff1,nPop,Q_diff3);
@@ -1002,16 +984,16 @@ int emAccelUnadjustedV2(const bgl d, double* nInd, int nPop, double** F,double* 
   // if alpha not too close (0.01 close) to 1 
   if (fabs(alpha - 1) > 0.01){
     // we estimate new Q and F, with our inferred Q and F via alpha
-    emUnadjusted(Q_new, F, d.nSites, nPop,d.genos,Q_tmp);    
+    emUnadjusted(Q_new, F, nSites, nPop,genos,Q_tmp);    
     minus1d(Q_tmp,Q_new,nPop,Q_tmpDiff);
     // adopted from squarem2 from SQUAREM package
     double res = sumSquare1d(Q_tmpDiff,nPop);
     double parnorm = (1/std::sqrt(nPop))*sumSquare1d(Q_tmpDiff,nPop);
     double kres = 1 + parnorm + sq2;
     if(res <= kres){
-      std::swap(Q_new,Q_tmp);
+      Q_new.swap(Q_tmp);
     } else{
-      std::swap(Q_new,Q_em2);
+      Q_new.swap(Q_em2);
     }
     if(res > kres){
       if (alpha == stepMax){
@@ -1029,7 +1011,7 @@ int emAccelUnadjustedV2(const bgl d, double* nInd, int nPop, double** F,double* 
   if(nit % 10 == 0){
     
     if(boot == 0){
-      double lnew = likelihood(Q_new, F, d.nSites, nPop,d.genos);
+      double lnew = likelihood(Q_new, F, nSites, nPop,genos);
       if(lnew!=lnew){
 	fprintf(stderr,"likelihood is nan, probably because dividing by 0, go fix ref panel or input!");
 	exit(0);
@@ -1045,8 +1027,9 @@ int emAccelUnadjustedV2(const bgl d, double* nInd, int nPop, double** F,double* 
   return 1;
 }
 
+
 // based on squarem1, from SQUAREM R package, by RAVI VARADHAN and CHRISTOPHE ROLAND Scandinavian Journal of Statistics, Vol. 35: 335–353, 2008
-int emAccelV2(const bgl d, double* nInd, int nPop, double** F,double* Q,double** &F_new,double* &Q_new, double** F_org, int nit, int boot, int Qconv, double Qtol, double tol){
+int emAccelV3(const std::vector<double> &genos, const std::vector<double> &nInd, int nPop, std::vector< std::vector<double> > &F, std::vector<double> &Q, std::vector< std::vector<double> > &F_new, std::vector<double> &Q_new, std::vector< std::vector<double> > &F_org, int nit, int boot, int Qconv, double Qtol, double tol, int nSites){
 
   double stepMin = 1;
   double stepMax0 = 1;
@@ -1055,91 +1038,70 @@ int emAccelV2(const bgl d, double* nInd, int nPop, double** F,double* Q,double**
   double objfnInc = 1;
 
   //we make these huge structures static such that we just allocate them the first time
-  static double **F_em1 = NULL;
-  static double *Q_em1 = NULL;
-  static double **F_diff1 = NULL;
-  static double *Q_diff1 = NULL;
-  static double **F_em2 = NULL;
-  static double *Q_em2 = NULL;
-  static double **F_diff2 = NULL;
-  static double *Q_diff2 = NULL;
-  static double **F_diff3 = NULL;
-  static double *Q_diff3 = NULL;
-  static double **F_tmp = NULL;
-  static double *Q_tmp = NULL;
-  static double **F_tmpDiff = NULL;
-  static double *Q_tmpDiff = NULL;
+
+
+  static std::vector<double> Q_em1;
+  static std::vector<double> Q_diff1;
+  static std::vector<double> Q_em2;
+  static std::vector<double> Q_diff2;
+  static std::vector<double> Q_diff3;
+  static std::vector<double> Q_tmp;
+  static std::vector<double> Q_tmpDiff;
   
-  if(F_em1==NULL){
-    F_em1 = allocDouble(d.nSites,nPop);
-    Q_em1 = new double[nPop];
-    F_diff1 = allocDouble(d.nSites,nPop);
-    Q_diff1 = new double[nPop];
-    F_em2 = allocDouble(d.nSites,nPop);
-    Q_em2 = new double[nPop];
-    F_diff2 = allocDouble(d.nSites,nPop);
-    Q_diff2 = new double[nPop];
-    F_diff3 = allocDouble(d.nSites,nPop);
-    Q_diff3 = new double[nPop];
-    F_tmp = allocDouble(d.nSites,nPop);
-    Q_tmp = new double[nPop];
-    F_tmpDiff =  allocDouble(d.nSites,nPop);
-    Q_tmpDiff = new double[nPop];
+  static std::vector< std::vector<double> > F_em1(nSites, std::vector<double>(nPop));
+  static std::vector< std::vector<double> > F_diff1(nSites, std::vector<double>(nPop));
+  static std::vector< std::vector<double> > F_em2(nSites, std::vector<double>(nPop));
+  static std::vector< std::vector<double> > F_diff2(nSites, std::vector<double>(nPop));
+  static std::vector< std::vector<double> > F_diff3(nSites, std::vector<double>(nPop));
+  static std::vector< std::vector<double> > F_tmp(nSites, std::vector<double>(nPop));
+  static std::vector< std::vector<double> > F_tmpDiff(nSites, std::vector<double>(nPop));
+
+  if(Q_em1.empty()){
+  
+    Q_em1.assign(nPop,0);
+    Q_diff1.assign(nPop,0);
+    Q_em2.assign(nPop,0);
+    Q_diff2.assign(nPop,0);    
+    Q_diff3.assign(nPop,0);      
+    Q_tmp.assign(nPop,0);        
+    Q_tmpDiff.assign(nPop,0);
+
   }
  
-  //should cleanup and exit
-  if(F==NULL){
-    dalloc(F_em1,d.nSites);
-    dalloc(F_em2,d.nSites);
-    dalloc(F_diff1,d.nSites);
-    dalloc(F_diff2,d.nSites);
-    dalloc(F_diff3,d.nSites);
-    dalloc(F_tmp,d.nSites);
-    dalloc(F_tmpDiff,d.nSites);
-    delete [] Q_em1;
-    delete [] Q_em2;
-    delete [] Q_diff1;
-    delete [] Q_diff2;
-    delete [] Q_diff3;
-    delete [] Q_tmp;
-    delete [] Q_tmpDiff;
-    return 0;
-}
-    
   // first EM run
-  em(Q, F, d.nSites, nInd, nPop,d.genos, F_em1, Q_em1, F_org);
-  minus(F_em1,F,d.nSites,nPop,F_diff1);
+  em(Q, F, nSites, nInd, nPop,genos, F_em1, Q_em1, F_org);
+  minus(F_em1,F,nSites,nPop,F_diff1);
   minus1d(Q_em1,Q,nPop,Q_diff1);
-  double sr2 = sumSquare1d(Q_diff1,nPop) + sumSquare(F_diff1,d.nSites,nPop);
+  double sr2 = sumSquare1d(Q_diff1,nPop) + sumSquare(F_diff1,nSites,nPop);
   // checks if convergence
   if(sqrt(sr2)<tol or (calcThres(Q,Q_em1,nPop) < Qtol and Qconv>0)){
-    //fprintf(stderr,"like is %f\n",likelihood(Q_new, F_new, d.nSites, nPop,d.genos));    
+    //fprintf(stderr,"like is %f\n",likelihood(Q_new, F_new, nSites, nPop,genos));    
     return 0;
   }
   // second EM run
-  em(Q_em1, F_em1, d.nSites, nInd, nPop,d.genos, F_em2, Q_em2, F_org);
-  minus(F_em2,F_em1,d.nSites,nPop,F_diff2);
+  em(Q_em1, F_em1, nSites, nInd, nPop,genos, F_em2, Q_em2, F_org);
+  minus(F_em2,F_em1,nSites,nPop,F_diff2);
   minus1d(Q_em2,Q_em1,nPop,Q_diff2);
-  double sq2 = sumSquare1d(Q_diff2,nPop) + sumSquare(F_diff2,d.nSites,nPop);
+  double sq2 = sumSquare1d(Q_diff2,nPop) + sumSquare(F_diff2,nSites,nPop);
   // checks if convergence - a second time
   if(sqrt(sq2)<tol or (calcThres(Q_em1,Q_em2,nPop) < Qtol and Qconv>0)){
-    //fprintf(stderr,"like is %f\n",likelihood(Q_new, F_new, d.nSites, nPop,d.genos));
+    //fprintf(stderr,"like is %f\n",likelihood(Q_new, F_new, nSites, nPop,genos));
     return 0;
   }
-  minus(F_diff2,F_diff1,d.nSites,nPop,F_diff3);
+  minus(F_diff2,F_diff1,nSites,nPop,F_diff3);
   minus1d(Q_diff2,Q_diff1,nPop,Q_diff3);
-  double sv2 = sumSquare1d(Q_diff3,nPop) + sumSquare(F_diff3,d.nSites,nPop);
+  double sv2 = sumSquare1d(Q_diff3,nPop) + sumSquare(F_diff3,nSites,nPop);
   double alpha = sqrt(sr2/sv2);  
   // makes sure alpha does not go below 1 and above stepMax
   alpha = std::max(stepMin,std::min(stepMax,alpha));
-  for(size_t i=0;i<d.nSites;i++){
+  for(size_t i=0;i<nSites;i++){
     for(size_t j=0;j<nPop;j++){
       // based on ngsAdmix approach
       F_new[i][j] = F[i][j]+2*alpha*F_diff1[i][j]+alpha*alpha*F_diff3[i][j];
       F_tmp[i][j] = 1.0;
     }
   }
-  map2domainF(F_new,d.nSites,nPop);
+  map2domainF(F_new,nSites,nPop);
   for(size_t i=0;i<nPop;i++){
     Q_new[i] = Q[i]+2*alpha*Q_diff1[i]+alpha*alpha*Q_diff3[i];
     Q_tmp[i] = 1.0;
@@ -1148,18 +1110,18 @@ int emAccelV2(const bgl d, double* nInd, int nPop, double** F,double* Q,double**
   // if alpha not too close (0.01 close) to 1 
   if (fabs(alpha - 1) > 0.01){
     // we estimate new Q and F, with our inferred Q and F via alpha
-    em(Q_new, F_new, d.nSites, nInd, nPop,d.genos,F_tmp,Q_tmp,F_org);
-    minus(F_tmp,F_new,d.nSites,nPop,F_tmpDiff);
+    em(Q_new, F_new, nSites, nInd, nPop,genos,F_tmp,Q_tmp,F_org);
+    minus(F_tmp,F_new,nSites,nPop,F_tmpDiff);
     minus1d(Q_tmp,Q_new,nPop,Q_tmpDiff);
-    double res = sumSquare1d(Q_tmpDiff,nPop) + sumSquare(F_tmpDiff,d.nSites,nPop);
-    double parnorm = (1/std::sqrt(nPop))*sumSquare1d(Q_tmpDiff,nPop) + (1/std::sqrt(d.nSites*nPop))*sumSquare(F_tmpDiff,d.nSites,nPop);
+    double res = sumSquare1d(Q_tmpDiff,nPop) + sumSquare(F_tmpDiff,nSites,nPop);
+    double parnorm = (1/std::sqrt(nPop))*sumSquare1d(Q_tmpDiff,nPop) + (1/std::sqrt(nSites*nPop))*sumSquare(F_tmpDiff,nSites,nPop);
     double kres = 1 + parnorm + sq2;
     if(res <= kres){
-      std::swap(Q_new,Q_tmp);
-      std::swap(F_new,F_tmp);
+      Q_new.swap(Q_tmp);
+      F_new.swap(F_tmp);
     } else{
-      std::swap(Q_new,Q_em2);
-      std::swap(F_new,F_em2);
+      Q_new.swap(Q_em2);
+      F_new.swap(F_em2);
     }
     if(res > kres){
       if (alpha == stepMax){
@@ -1176,7 +1138,7 @@ int emAccelV2(const bgl d, double* nInd, int nPop, double** F,double* Q,double**
   }
   if(nit % 10 == 0){
     if(boot == 0){
-      double lnew = likelihood(Q_new, F_new, d.nSites, nPop,d.genos);
+      double lnew = likelihood(Q_new, F_new, nSites, nPop,genos);
       if(lnew!=lnew){
 	fprintf(stderr,"likelihood is nan, probably because dividing by 0, go fix ref panel or input!");
 	exit(0);
@@ -1193,178 +1155,11 @@ int emAccelV2(const bgl d, double* nInd, int nPop, double** F,double* Q,double**
 }
 
 
-
-
-
-
-
-
-
-// based on squarem1, from SQUAREM R package, by RAVI VARADHAN and CHRISTOPHE ROLAND Scandinavian Journal of Statistics, Vol. 35: 335–353, 2008
-int emAccelV3(const bgl d, double* nInd, int nPop, double** F,double* Q,double** &F_new,double* &Q_new, double** F_org, int nit, int boot, int Qconv, double Qtol, double tol){
-
-  double stepMin = 1;
-  double stepMax0 = 1;
-  static double stepMax = stepMax0;
-  double mstep = 4;
-  double objfnInc = 1;
-
-//we make these huge structures static such that we just allocate them the first time
-  static double **F_em1 = NULL;
-  static double *Q_em1 = NULL;
-  static double **F_diff1 = NULL;
-  static double *Q_diff1 = NULL;
-  static double **F_em2 = NULL;
-  static double *Q_em2 = NULL;
-  static double **F_diff2 = NULL;
-  static double *Q_diff2 = NULL;
-  static double **F_diff3 = NULL;
-  static double *Q_diff3 = NULL;
-  static double **F_tmp = NULL;
-  static double *Q_tmp = NULL;
-  static double **F_tmpDiff = NULL;
-  static double *Q_tmpDiff = NULL;
-  
-  if(F_em1==NULL){
-    F_em1 = allocDouble(d.nSites,nPop);
-    Q_em1 = new double[nPop];
-    F_diff1 = allocDouble(d.nSites,nPop);
-    Q_diff1 = new double[nPop];
-    F_em2 = allocDouble(d.nSites,nPop);
-    Q_em2 = new double[nPop];
-    F_diff2 = allocDouble(d.nSites,nPop);
-    Q_diff2 = new double[nPop];
-    F_diff3 = allocDouble(d.nSites,nPop);
-    Q_diff3 = new double[nPop];
-    F_tmp = allocDouble(d.nSites,nPop);
-    Q_tmp = new double[nPop];
-    F_tmpDiff =  allocDouble(d.nSites,nPop);
-    Q_tmpDiff = new double[nPop];
-  }
-  
-  //should cleanup and exit
-  if(F==NULL){
-    dalloc(F_em1,d.nSites);
-    dalloc(F_em2,d.nSites);
-    dalloc(F_diff1,d.nSites);
-    dalloc(F_diff2,d.nSites);
-    dalloc(F_diff3,d.nSites);
-    dalloc(F_tmp,d.nSites);
-    dalloc(F_tmpDiff,d.nSites);
-    delete [] Q_em1;
-    delete [] Q_em2;
-    delete [] Q_diff1;
-    delete [] Q_diff2;
-    delete [] Q_diff3;
-    delete [] Q_tmp;
-    delete [] Q_tmpDiff;
-    return 0;
-}
- 
- 
-  // first EM run
-  em(Q, F, d.nSites, nInd, nPop,d.genos, F_em1, Q_em1, F_org);
-  minus(F_em1,F,d.nSites,nPop,F_diff1);
-  minus1d(Q_em1,Q,nPop,Q_diff1);
-  double sr2 = sumSquare1d(Q_diff1,nPop) + sumSquare(F_diff1,d.nSites,nPop);
-  // checks if convergence
-  if(sqrt(sr2)<tol or (calcThres(Q,Q_em1,nPop) < Qtol and Qconv>0)){
-    //fprintf(stderr,"like is %f\n",likelihood(Q_new, F_new, d.nSites, nPop,d.genos));    
-    return 0;
-  }
-  // second EM run
-  em(Q_em1, F_em1, d.nSites, nInd, nPop,d.genos, F_em2, Q_em2, F_org);
-  minus(F_em2,F_em1,d.nSites,nPop,F_diff2);
-  minus1d(Q_em2,Q_em1,nPop,Q_diff2);
-  double sq2 = sumSquare1d(Q_diff2,nPop) + sumSquare(F_diff2,d.nSites,nPop);
-  // checks if convergence - a second time
-  if(sqrt(sq2)<tol or (calcThres(Q_em1,Q_em2,nPop) < Qtol and Qconv>0)){
-    //fprintf(stderr,"like is %f\n",likelihood(Q_new, F_new, d.nSites, nPop,d.genos));
-    return 0;
-  }
-  minus(F_diff2,F_diff1,d.nSites,nPop,F_diff3);
-  minus1d(Q_diff2,Q_diff1,nPop,Q_diff3);
-  double sv2 = sumSquare1d(Q_diff3,nPop) + sumSquare(F_diff3,d.nSites,nPop);
-  double alpha = sqrt(sr2/sv2);  
-  // makes sure alpha does not go below 1 and above stepMax
-  alpha = std::max(stepMin,std::min(stepMax,alpha));
-  for(size_t i=0;i<d.nSites;i++){
-    for(size_t j=0;j<nPop;j++){
-      // based on ngsAdmix approach
-      F_new[i][j] = F[i][j]+2*alpha*F_diff1[i][j]+alpha*alpha*F_diff3[i][j];
-      F_tmp[i][j] = 1.0;
-    }
-  }
-  map2domainF(F_new,d.nSites,nPop);
-  for(size_t i=0;i<nPop;i++){
-    Q_new[i] = Q[i]+2*alpha*Q_diff1[i]+alpha*alpha*Q_diff3[i];
-    Q_tmp[i] = 1.0;
-  }
-  map2domainQ(Q_new,nPop);
-  // if alpha not too close (0.01 close) to 1 
-  if (fabs(alpha - 1) > 0.01){
-    // we estimate new Q and F, with our inferred Q and F via alpha
-    em(Q_new, F_new, d.nSites, nInd, nPop,d.genos,F_tmp,Q_tmp,F_org);
-    minus(F_tmp,F_new,d.nSites,nPop,F_tmpDiff);
-    minus1d(Q_tmp,Q_new,nPop,Q_tmpDiff);
-    double res = sumSquare1d(Q_tmpDiff,nPop) + sumSquare(F_tmpDiff,d.nSites,nPop);
-    double parnorm = (1/std::sqrt(nPop))*sumSquare1d(Q_tmpDiff,nPop) + (1/std::sqrt(d.nSites*nPop))*sumSquare(F_tmpDiff,d.nSites,nPop);
-    double kres = 1 + parnorm + sq2;
-    if(res <= kres){
-      std::swap(Q_new,Q_tmp);
-      std::swap(F_new,F_tmp);
-    } else{
-      std::swap(Q_new,Q_em2);
-      std::swap(F_new,F_em2);
-    }
-    if(res > kres){
-      if (alpha == stepMax){
-	stepMax = std::max(stepMax0, stepMax/2);
-      }
-      alpha = 1;
-    }    
-  }
-  if (alpha == stepMax){ 
-    stepMax = mstep * stepMax;
-  }
-  if (stepMin < 0 & alpha == stepMin) {
-    stepMin = mstep * stepMin;
-  }
-  if(nit % 10 == 0){
-    if(boot == 0){
-      double lnew = likelihood(Q_new, F_new, d.nSites, nPop,d.genos);
-      if(lnew!=lnew){
-	fprintf(stderr,"likelihood is nan, probably because dividing by 0, go fix ref panel or input!");
-	exit(0);
-      }
-      fprintf(stderr,"iter[%d] like=%f alpha=%f ",nit,lnew,alpha);
-      for(int i=0;i<nPop;i++){	      
-	fprintf(stderr,"Q=%f, ",Q_new[i]);
-      }
-      fprintf(stderr,"\n");
-    }
-  }
-  
-  return 1;
-}
-
-
-
-
-
-
-
-
-
-
-
-// finds overlap between input and ref panel based on id chr_pos, assumes no duplicate sites in terms of position
-std::map <std::string,int> findOverlapV2(const char* lname, const char* plinkName, const char* fname, FILE* flog, std::map <std::string,int> includedPops, char* pops2, double maf){
+// finds overlap between input and ref panel based on id chr_pos_A0_A1 (A0,A1 two alleles sorted), assumes no duplicate sites in terms of position and alleles
+std::map <std::string,int> findOverlapV3(const char* lname, const char* plinkName, const char* fname, FILE* flog, const std::map <std::string,int> &includedPops, char* pops, double maf){
   std::map <std::string,int> inputSites;
   static std::map <std::string,int> overlap;
   const char *delims = "\t \n";
-  std::vector<char*> tmpBeagle;
-  std::vector<char*> tmpRef;
   // if beagle file input
   if(plinkName==NULL){
     int beagleIndex=0;
@@ -1375,22 +1170,27 @@ std::map <std::string,int> findOverlapV2(const char* lname, const char* plinkNam
     }
     char buf1[LENS];
     while(NULL!=gzgets(fp1,buf1,LENS)){
-
       if(beagleIndex>0){
-
-
 	char* bglID = strtok(buf1,delims);
 	std::string bglString(bglID,strlen(bglID));
+	char A0 = intToChar(strtok(NULL,delims)[0]);
+	char A1 = intToChar(strtok(NULL,delims)[0]);
+	
+	if( tolower(A0) < tolower(A1)){
+	  bglString=bglString + "_" + A0 + "_" + A1;
+	} else{
+	  bglString=bglString + "_" + A1 + "_" + A0;
+	}
+	
 	if(inputSites.count(bglString)>0){
-	  fprintf(stderr,"Duplicate sites in beagle file: %s - Go fix!\n",bglID);
+	  fprintf(stderr,"Duplicate sites in beagle file: %s - Go fix!\n",bglString.c_str());
 	  exit(0);
 	} else{
 	  inputSites[bglString]=1;
 	}
       }
       beagleIndex++;
-    }
-    
+    }    
     gzclose(fp1);
     // if plink file input
   } else{
@@ -1430,30 +1230,48 @@ std::map <std::string,int> findOverlapV2(const char* lname, const char* plinkNam
       char* refPop = strtok(buf2,delims);
       while(refPop!=NULL){
 	std::string refPopString(refPop,strlen(refPop));
-	if(includedPops.count(refPopString)>0 or  strcmp(pops2,"ALL")==0){	  
+	int allPops = toupper(pops[0])=='A' and toupper(pops[1])=='L' and toupper(pops[2])=='L' and pops[3]=='\0';
+	if(includedPops.count(refPopString)>0 or allPops){	  
 	  colsToRead[whichCol] = 1;
 	}
 	whichCol++;
 	refPop = strtok(NULL,delims);
       }
+    
     } else{      
       
       char* id = strtok(buf2,delims);
-      std::string plinkStringID(id,strlen(id));
-      int colBeingRead = 0;
+      std::string refStringID(id,strlen(id));
+
+      // in order to get past the pre-allele stuff
+      strtok(NULL,delims);
+      strtok(NULL,delims);
+      strtok(NULL,delims);
+
+      // in order to get alleles   
+      char A0 = intToChar(strtok(NULL,delims)[0]);
+      char A1 = intToChar(strtok(NULL,delims)[0]);
+      
+      if( tolower(A0) < tolower(A1)){
+	refStringID=refStringID + "_" + A0 + "_" + A1;
+      } else{
+	refStringID=refStringID + "_" + A1 + "_" + A0;
+      }
+      
+      int colBeingRead = 5;
       int skipLine = 0;
       while(id!=NULL){	
 
-	std::string plinkString(id,strlen(id));
+	std::string refString(id,strlen(id));
 	// check if a freq column
 	if(colBeingRead>=6){
 	  // checks if one of selected columns
 	  if(colsToRead.count(colBeingRead)>0){
 	    // checks if not double NA for instance
-	    if(not validDouble(plinkString)){
+	    if(not validDouble(refString)){
 	      skipLine = 1;
 	      // checks if freq below maf threshold
-	    } else  if(validDouble(plinkString) and atof(id)<maf){
+	    } else  if(validDouble(refString) and (atof(id)<maf or atof(id)>1-maf)){
 	      skipLine = 1;
 	    }     
 	  }
@@ -1463,29 +1281,27 @@ std::map <std::string,int> findOverlapV2(const char* lname, const char* plinkNam
 	
       }
       
-      if(overlap.count(plinkStringID)>0){
-	fprintf(stderr,"Duplicate site in ref panel: %s - Go fix!\n",id);     
+      if(overlap.count(refStringID)>0){
+	fprintf(stderr,"Duplicate site in ref panel: %s - Go fix!\n",refStringID.c_str());     
 	exit(0);
 	// check if site is in beagle or plink file
 	// otherwise continues to next site in ref
-      } else if(inputSites.count(plinkStringID) > 0 and not skipLine){
-	overlap[plinkStringID] = 1;	
+      } else if(inputSites.count(refStringID) > 0 and not skipLine){
+	overlap[refStringID] = 1;
+
 	
       }	
       
     }
     refIndex++;
+
   }
   
   // because ref index also counts header
-  if(maf>0){
-    fprintf(stderr,"Ref has this many sites %i after applying maf filter of %f\n",refIndex-1,maf);
-    fprintf(flog,"Ref has this many sites %i after applying maf filter of %f\n",refIndex-1,maf);
 
-  } else{
-    fprintf(stderr,"Ref has this many sites %i\n",refIndex-1);
-    fprintf(flog,"Ref has this many sites %i\n",refIndex-1);
-  }
+  fprintf(stderr,"Ref has this many sites %i\n",refIndex-1);
+  fprintf(flog,"Ref has this many sites %i\n",refIndex-1);
+  
   // starts at 1 to avoid header
     
   if(overlap.size()==0){
@@ -1565,7 +1381,7 @@ void handler(int s) {
   float minMaf = 0.00;
   const char* lname = NULL;
   const char* fname = NULL;
-  char* pops = NULL;
+  char* pops = '\0';
   const char* Nname = NULL;
   const char* outfiles = NULL;
   const char* plinkName = NULL;
@@ -1650,7 +1466,7 @@ void handler(int s) {
     outfiles=plinkName;
   }
 
-  if(pops==NULL){
+  if(pops=='\0'){
     fprintf(stderr,"Please supply which populations to be analyzed - 'all' for all pops: -Nname\n");
     info();
  
@@ -1700,17 +1516,15 @@ void handler(int s) {
   }
 
 
+
+
   // to get the populations from ref to be analyzed
   std::map <std::string,int> includedPops;
 
-  char pops2[3];
-  for(int i=0;i<3; i++){
-    pops2[i]=toupper(pops[i]);
-
-  }
-
     // if pops are specified, reads which pops and construcs map with those
-  if(strcmp(pops2,"ALL")!=0){
+  if(not (toupper(pops[0])=='A' and toupper(pops[1])=='L' and toupper(pops[2])=='L' and pops[3]=='\0')){
+
+
     char* temp = strtok(pops,",");
     while(temp!=NULL){
       nPop++;
@@ -1728,32 +1542,43 @@ void handler(int s) {
 
   // to find out which version of C++
   //fprintf(stderr,"V: [%ld] ", __cplusplus);
+
+
+  
   
   bgl d;
   bgl dOrg;
   std::map <std::string,int> overlap;
   if(lname!=NULL){
     // finds overlapping sites, then reads beagle
-    overlap = findOverlapV2(lname, NULL, fname,flog,includedPops,pops2,maf);
+    overlap = findOverlapV3(lname, NULL, fname,flog,includedPops,pops,maf);
     d=readBeagle(lname,overlap);
     dOrg=readBeagle(lname,overlap);
   } else if(plinkName!=NULL){
     // finds overlapping sites, then reads plink file
-    overlap = findOverlapV2(NULL, plinkName, fname,flog,includedPops,pops2,maf);
+    overlap = findOverlapV3(NULL, plinkName, fname,flog,includedPops,pops,maf);
     d=readPlinkToBeagle(plinkName, overlap);
     dOrg=readPlinkToBeagle(plinkName, overlap);  
   }
-  
-  fprintf(stderr,"Overlap: of %zu sites between input and ref\n",overlap.size());
-  fprintf(flog,"Overlap: of %zu sites between input and ref\n",overlap.size());  
-  
+
+
+  if(maf>0){
+    fprintf(stderr,"Overlap: of %zu sites between input and ref, after maf filter of %f\n",overlap.size(),maf);
+    fprintf(flog,"Overlap: of %zu sites between input and ref, after maf filter of %f\n",overlap.size(),maf);  
+  } else{
+    fprintf(stderr,"Overlap: of %zu sites between input and ref\n",overlap.size());
+    fprintf(flog,"Overlap: of %zu sites between input and ref\n",overlap.size());  
+
+  }
   
   // reads in ref Panel
   refPanel ref;
 
+  
+  
   // if nPop == 0 then read in all of them refs
   ref = readRefPanel(fname,d,includedPops,nPop,overlap);
-  if(strcmp(pops2,"ALL")==0){
+  if(toupper(pops[0])=='A' and toupper(pops[1])=='L' and toupper(pops[2])=='L' and pops[3]=='\0'){
     nPop = ref.popsToKeep.size();
     // so checks that whichPops has same pops as ref, if whichPops given
   } else  if(includedPops.size()!=ref.popsToKeep.size()){
@@ -1761,6 +1586,8 @@ void handler(int s) {
     info();
   }
 
+  
+  
   if(nPop<2){
     fprintf(stderr,"nPop has to be at least 2, nPop=%i\n",nPop);
     fprintf(flog,"nPop has to be at least 2, nPop=%i\n",nPop);
@@ -1781,15 +1608,15 @@ void handler(int s) {
 
   // seed for bootstrapping and random starting points
   std::srand(seed);
-      
-  double **F = allocDouble(d.nSites,nPop);
-  double **F_new = allocDouble(d.nSites,nPop);
+
+  std::vector< std::vector<double> > F(d.nSites, std::vector<double>(nPop));
+  std::vector< std::vector<double> > F_new(d.nSites, std::vector<double>(nPop));
   // F_org is for storing initial freqs from ref panel
-  double **F_org = allocDouble(d.nSites,nPop);
+  std::vector< std::vector<double> > F_org(d.nSites, std::vector<double>(nPop));
   // for sampling from when doing bootstrap
-  double **F_orgOrg = allocDouble(d.nSites,nPop);
-  // for when having to write adjusted freqs 
-  double **F_1stRun = allocDouble(d.nSites,nPop);  
+  std::vector< std::vector<double> > F_orgOrg(d.nSites, std::vector<double>(nPop));
+  // for when having to write adjusted freqs
+  std::vector< std::vector<double> > F_1stRun(d.nSites, std::vector<double>(nPop));
   // gets freq values from ref struct, where read into
   for(int i=0;i<d.nSites;i++){
     for(int k=0;k<nPop;k++){
@@ -1800,12 +1627,12 @@ void handler(int s) {
      
   }
 
-    
-
   // because has to have conv values for converge runs, and then nBoot bootstrapped values
-  double **Q = allocDouble(nBoot+nConv,nPop);
-  double **Q_new = allocDouble(nBoot+nConv,nPop);
-  double *sum = new double[nBoot+nConv];
+
+  std::vector< std::vector<double> > Q(nBoot+nConv, std::vector<double>(nPop));
+  std::vector< std::vector<double> > Q_new(nBoot+nConv, std::vector<double>(nPop));
+  std::vector<double> sum;
+  sum.assign(nBoot+nConv,0);
   // nBoot + conv rows
   for(int j=0;j<nBoot+nConv;j++){
     sum[j]=0;
@@ -1822,9 +1649,9 @@ void handler(int s) {
       Q_new[j][k] = Q[j][k];
     }
   }
-  delete [] sum;
-  
-  double *N = new double[nPop];  
+
+  std::vector<double> N;
+  N.assign(nPop,0);
   // reading nInd, where colsToKeep from ref to read in the same columns as in ref
   readDouble1d(N,nPop,Nname,ref.popsToKeep);
   fprintf(flog,"Opening nInd file: %s with nPop=%d\n",fname,nPop); 
@@ -1838,7 +1665,7 @@ void handler(int s) {
   fprintf(stderr,"\n");
   fprintf(flog,"\n");
 
-  double* bestLike = new double[nConv];
+  std::vector<double> bestLike; bestLike.assign(nConv,0);
   int highestLike = 0;
   // initial likelihood   
   double lold = likelihood(Q[0], F_org, d.nSites, nPop,d.genos);
@@ -1858,7 +1685,7 @@ void handler(int s) {
     nit=0;  
     if(b>(nConv-1)){
       // do bootstrapping when conv runs done
-      bootstrap(dOrg,d,F_orgOrg,F_org,F,nPop); 
+      bootstrap(dOrg.genos,d.genos,F_orgOrg,F_org,F,nPop,d.nSites); 
       fprintf(stderr,"At this bootstrapping: %i out of: %i\n",b-(nConv-1),nBoot);
       fprintf(flog,"At this bootstrapping: %i out of: %i\n",b-(nConv-1),nBoot);
     }
@@ -1868,8 +1695,8 @@ void handler(int s) {
 	  // unadjusted, unaccelerated EM
 	  emUnadjusted(Q[b], F, d.nSites, nPop,d.genos,Q_new[b]);
 	} else{
-	  // unadjusted, accelerated EM
-	  if(0==emAccelUnadjustedV2(d, N, nPop, F, Q[b], Q_new[b],F_org, nit, b, Qconv, Qtol, tol)){
+	  // unadjusted, accelerated EM	  
+	  if(0==emAccelUnadjustedV2(d.genos, N, nPop, F, Q[b], Q_new[b], nit, b, Qconv, Qtol, tol, d.nSites)){
 	    if(b<nConv){
 	      // stores all likelihoods so max can be found
 	      bestLike[b] = likelihood(Q[b], F_org, d.nSites, nPop,d.genos);
@@ -1884,7 +1711,7 @@ void handler(int s) {
 	  em(Q[b], F, d.nSites, N, nPop,d.genos,F_new,Q_new[b],F_org);
 	} else{
 	  // adjusted, accelerated EM
-	  if(0==emAccelV3(d, N, nPop, F, Q[b], F_new, Q_new[b],F_org, nit, b, Qconv, Qtol, tol)){
+	  if(0==emAccelV3(d.genos, N, nPop, F, Q[b], F_new, Q_new[b],F_org, nit, b, Qconv, Qtol, tol, d.nSites)){
 	    if(b<nConv){
 	      double tmpLike =  likelihood(Q_new[b], F_new, d.nSites, nPop,d.genos);
 	      // stores F with max likelihood, so can be written later
@@ -1913,11 +1740,11 @@ void handler(int s) {
 	  
 	}
 	// swaps adresses of F and F_new, as F_new has the results from the iteration just paseed
-	std::swap(F,F_new);
+	F.swap(F_new);
       }
       // swaps adresses of Q and Q_new, as F_new has the results from the iteration just paseed
-      std::swap(Q,Q_new);
-
+      Q.swap(Q_new);
+      
       //stopping criteria, for EM unaccelerated
       if((nit%10)==0 and method == 0){
 
@@ -1967,7 +1794,7 @@ void handler(int s) {
 	likeLast = lik;
       }
       // if no more iterations store likelihood no matter what
-      if((nit+1)==maxIter){
+      if((nit+1)==maxIter and b<nConv){
 	bestLike[b] = likeLast;
       }
     }     
@@ -2041,41 +1868,11 @@ void handler(int s) {
     printDoubleGz(F_1stRun,ref.refSites,nPop,ref.id,ref.populations,fpGz);
     gzclose(fpGz);
   }
-  double nop;
-  
-  if(doAdjust>0 and method>0){
-    emAccelV3(d, NULL, 0, NULL, NULL, F_new, Q_new[0],NULL,nop, 0,1,0,0);
-    
-  } else if(method > 0){
-    emAccelUnadjustedV2(d, NULL, 0, NULL, NULL, Q_new[0],NULL,nop, 0, 1,0,0);
-  }
-  
-  
-
-  
-  
-  //deallocate memory 
-  dalloc(F,d.nSites); 
-  dalloc(F_1stRun,d.nSites);  
-  dalloc(F_new,d.nSites);  
-  dalloc(Q,nBoot+nConv); 
-  dalloc(Q_new,nBoot+nConv);   
-  dalloc(F_org,d.nSites);
-  dalloc(F_orgOrg,d.nSites);
-  
-  delete [] N;
-  delete [] bestLike;
- 
-  d.idMap.clear();
-  dallocBeagle(d);
-  dallocBeagle(dOrg);
-  dallocRefPanel(ref,nPop);
-
- 
-
+   
+  /*
   for(int i=0;1&&i<dumpedFiles.size();i++){
     free(dumpedFiles[i]);
-  }
+    }*/
   fprintf(stderr, "\t[ALL done] cpu-time used =  %.2f sec\n", (float)(clock() - t) / CLOCKS_PER_SEC);
   fprintf(stderr, "\t[ALL done] walltime used =  %.2f sec\n", (float)(time(NULL) - t2));  
 
