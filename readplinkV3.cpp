@@ -206,14 +206,18 @@ bimFile readBimFile(const char* fname,int lines) {
     bim.minor[bimIndex] = strtok(NULL,delims)[0];
     bim.major[bimIndex] = strtok(NULL,delims)[0];
      
-
     std::string chrString(chrChar,strlen(chrChar));
     std::string posString(posChar,strlen(posChar));
 
-    // for concatenating strings    
     std::string bimID = chrString + "_" + posString;
-    bim.id.push_back(bimID);     
+    // for concatenating strings now also with alleles
+    if( tolower(bim.minor[bimIndex]) < tolower(bim.major[bimIndex]) ){
+      bimID = bimID + "_" + bim.minor[bimIndex] + "_" + bim.major[bimIndex];
+    } else{
+      bimID = bimID + "_" + bim.major[bimIndex] + "_" + bim.minor[bimIndex];
+    }
     
+    bim.id.push_back(bimID);     
     bimIndex++;
     
   }
