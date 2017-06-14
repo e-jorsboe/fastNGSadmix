@@ -1,7 +1,22 @@
-plinkFile<-commandArgs(trailingOnly = T)[1]
+args<-commandArgs(trailingOnly = T)
 
-if(length(commandArgs(trailingOnly = T))>1){
-  maf<-as.numeric(commandArgs(trailingOnly = T)[2])
+plinkFile<-unlist(args[1])
+
+if(length(args)==0){
+
+    print("Arguments have to be supplied: ")
+    print(" 1. plinkFile to turn in to ref panel, 2. if remove Dups (1: yes, 0: no (default)), 3. Maf filter")
+    q()
+}
+
+if(length(args)>1){
+    rmDups<-as.numeric(args[2])
+} else{
+    rmDups<-0
+}
+
+if(length(args)>2){
+  maf<-as.numeric(args[3])
   if(maf>=0.5){
     cat("Has to be minor allele frequency - meaning < 0.5")
     q() 
@@ -48,9 +63,18 @@ f2<-do.call(cbind,l)
 
 ## ref looks like this, example with French, Han, Karitiana, Papuan and Yoruba
 ## id chr pos name A0_freq A1 French Han Karitiana Papuan Yoruba
-if(length(commandArgs(trailingOnly = T))>1){
+if(length(args)>2 & rmDups>0){
+    ## bim has same number of sites as geno with same ordering
+    alleles<-apply(pl$bim,1,function(x) paste(sort(x[5:6]),collapse="_"))
+    idKeep<-!duplicated(paste0(pl$bim$V1,"_",pl$bim$V4,"_",alleles))
+    keep2<-apply(pl$geno,2,function(x) sum(x,na.rm = T)/(2*sum(!is.na(x))) >= maf & sum(x,na.rm = T)/(2*sum(!is.na(x))) <= 1-maf)
+    keep<-keep2 & idKeep
+    f3<-cbind(id=as.vector(paste(trimws(pl$bim$V1[keep]),trimws(pl$bim$V4[keep]),sep="_")),chr=pl$bim$V1[keep],pos=pl$bim$V4[keep],name=pl$bim$V2[keep],A0_freq=pl$bim$V5[keep],A1=pl$bim$V6[keep],f2[keep,])
+} else if(length(args)>1 & rmDups>0){
     ## removes sites based on frequncy of site across all pops
-    keep<-apply(pl$geno,2,function(x) sum(x,na.rm = T)/(2*sum(!is.na(x))) >= maf & sum(x,na.rm = T)/(2*sum(!is.na(x))) <= 1-maf )
+    alleles<-apply(pl$bim,1,function(x) paste(sort(x[5:6]),collapse="_"))
+    idKeep<-!duplicated(paste0(pl$bim$V1,"_",pl$bim$V4,"_",alleles))
+    keep<-idKeep
     f3<-cbind(id=as.vector(paste(trimws(pl$bim$V1[keep]),trimws(pl$bim$V4[keep]),sep="_")),chr=pl$bim$V1[keep],pos=pl$bim$V4[keep],name=pl$bim$V2[keep],A0_freq=pl$bim$V5[keep],A1=pl$bim$V6[keep],f2[keep,])
 } else{
     
@@ -59,9 +83,11 @@ if(length(commandArgs(trailingOnly = T))>1){
 
 
 nInd<-rbind(names(table(pl$fam$V1)),as.vector(table(pl$fam$V1)))
-
-name<-tail(unlist(strsplit(plinkFile,"/")),1)
-
+if(grepl("/",plinkFile)){
+    name<-tail(unlist(strsplit(plinkFile,"/")),1)
+} else{
+    name<-plinkFile
+}
 sites<-cbind(f3[,2:3],f3[,5:6])
 
 write.table(f3,paste("refPanel_",name,".txt",sep=""),col=T,row=F,quote=F)
