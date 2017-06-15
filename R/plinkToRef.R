@@ -9,6 +9,9 @@ if(length(args)==0){
     q()
 }
 
+rmDups<-0
+maf<-0
+
 if(length(args)>1){
 
     if(!as.numeric(args[2])%in%c(0,1)){
