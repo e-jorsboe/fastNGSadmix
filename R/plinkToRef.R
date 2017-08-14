@@ -9,7 +9,7 @@ if(length(args)==0){
     q()
 }
 
-rmDups<-0
+rmDups<-1
 maf<-0
 
 if(length(args)>1){
