@@ -6,6 +6,7 @@ if(length(args)==0){
 
     print("Arguments have to be supplied: ")
     print("1. plinkFile to turn in to ref panel, 2. if remove Dups (1: yes, 0: no (default)), 3. Maf filter")
+    print("It is HIGHLY recommended to do missingness filter on data prior to creating a ref panel")
     q()
 }
 
