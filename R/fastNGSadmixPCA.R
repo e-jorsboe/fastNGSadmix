@@ -70,7 +70,8 @@ args<-list(likes=NULL,
            qopt = NULL,
            dryrun = FALSE,
            out = 'output',
-           PCs="1,2"
+           PCs="1,2",
+           multiCores=1
 )
 ## if no argument aree given prints the need arguments and the optional ones with default
 des<-list(likes="input GL in beagle format",
@@ -79,7 +80,9 @@ des<-list(likes="input GL in beagle format",
           qopt= "estimated admixture proportions from fastNGSadmix, as .qopt file",
           dryrun = '',
           out= "output filename prefix",
-          PCs= "which Principal components to be ploted default 1 and 2"
+          PCs= "which Principal components to be ploted default 1 and 2",
+          multiCores= "using mclapply from the parallel package, denote how many cores to be used, if 1 normal lapply used - for number of cores use: parallel:::detectCores()"
+        
           
           
 )
@@ -95,6 +98,13 @@ if(length(args)==0){
   q("no")
 }
 ###################################
+
+if(!require(snpStats)){
+    print("You must install the R package: 'snpStats'")
+    if(as.numeric(multiCores) > 1 & !require(parallel)){
+        print("You must install the R packages: 'parallel' and 'snpStats'")
+    }
+}
 
 
 ## for reading plink files using snpStats
@@ -136,7 +146,6 @@ if(!all(k<-refpops%in%unique(pl$fam$V1))){
 ccol <- c("darkgreen","darkorange","goldenrod2","#A6761D","darkred","lightgreen","darkblue","lightblue")
 grDevices::palette(ccol)
 gar<-grDevices::dev.off()
-require(methods)
 
 ## used for calculating the covariance entries between input data and ref indis without normalizing
 glfunc <- function(x,G_mat,my2,pre_norm,geno_test2) {
@@ -289,7 +298,11 @@ estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
 
     print("Calculating covarinace matrix for input individual")
     print("")
-    GL_called <- unlist(lapply(colnames(geno_test2),glfunc,G_mat=G_mat,my=my2,pre_norm=pre_norm,geno_test=geno_test2))
+    if(as.numeric(multiCores)>1){
+        GL_called <- unlist(parallel:::mclapply(colnames(geno_test2),glfunc,G_mat=G_mat,my=my2,pre_norm=pre_norm,geno_test=geno_test2,mc.cores=as.numeric(multiCores)))
+    } else{
+        GL_called <- unlist(lapply(colnames(geno_test2),glfunc,G_mat=G_mat,my=my2,pre_norm=pre_norm,geno_test=geno_test2))
+    }
     
     ## calculating covariances, between individual itself
     abc_single <- (G_mat-my2)*(G_mat-my2)*pre_norm
