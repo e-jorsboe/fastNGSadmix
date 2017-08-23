@@ -9,7 +9,7 @@ infoFile<-arguments[3]
 ## name of group of smaples that you want to plot together via procrustes
 groupName<-arguments[4]
 
-if(length(args)==0){
+if(length(arguments)==0){
 
     print("Arguments have to be supplied: ")
     print("1. directory of *_covar.txt files, 2. .fam file of plink file used for ref individuals (geno=), 3. file of individuals to be included, must have same name as *_covar.txt files (except _covar.txt), 4. name of group of *_covar.txt files to be plotted")
@@ -36,6 +36,7 @@ info[,1]<-info[ info[,1]%in%int,]
 files2<-files2[ files2[,"filesName"]%in%int,]
 
 print("creating tmp procrustesPCs directory")
+## returns 1 if dir already exists and 0 if not
 createdError<-system("mkdir procustesPCs")
 
 pc <- function(f){
