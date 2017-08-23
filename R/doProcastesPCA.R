@@ -35,7 +35,8 @@ int<-intersect(info[,1],files2[,"filesName"])
 info[,1]<-info[ info[,1]%in%int,]
 files2<-files2[ files2[,"filesName"]%in%int,]
 
-
+print("creating tmp procrustesPCs directory")
+createdError<-system("mkdir procustesPCs")
 
 pc <- function(f){
   r<-read.table(f,head=T)
@@ -48,7 +49,7 @@ pc <- function(f){
 ## look at how many cores avaible
 
 cores<-parallel:::detectCores()
-a<-parallel::mclapply(files2[,"files"],pc,mc.cores=max(ceiling(cores/2),20))
+a<-parallel::mclapply(files2[,"files"],pc,mc.cores=min(ceiling(cores/2),20))
 
 ##########################################
 library(vegan)
@@ -98,5 +99,6 @@ points(res,pch=4)
 legend("bottomright",cex=2,pch=c(rep(15,length(unique(fam$V1))),4),col=c(unique(as.factor(c(fam$V1))),"black"),legend=c(paste0(unique(as.factor(c(fam$V1)))),groupName))
 
 dev.off()
-
-system("rm procustesPCs/*")
+if(!createdError){
+	system("rm -r procustesPCs")
+}
