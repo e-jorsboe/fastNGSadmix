@@ -24,7 +24,7 @@ however if one wants to create larger reference panels (and thereby genotypes),
 doing it on a server with more RAM would be advisable.
 As the R scripts will take up a lot of RAM in that case.
 
-iAdmix:
+iAdmix (Bansal, 2015):
 =====
 
 I have provided some script for running iAdmix with genotype likelihoods directly.
