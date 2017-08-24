@@ -680,7 +680,7 @@ void readDoubleGZ(double **d,int nSites,int nPop,const char*fname,int neg){
 
 // for reading number of individuals in each ref - nInd file
 void readDouble1d(std::vector <double> &d,int nPop,const char*fname, std::map<std::string,int> popsToKeep){
-  fprintf(stderr,"Opening nInd file: %s with K=%d\n",fname,nPop);
+  fprintf(stderr,"Opening nInd file: %s with nPop=%d\n",fname,nPop);
   const char*delims=" \n\t";
   gzFile fp = NULL;
   if((fp=gzopen(fname,"r"))==NULL){
@@ -1408,7 +1408,7 @@ void handler(int s) {
     else if(strcmp(*argv,"-Nname")==0 || strcmp(*argv,"-N")==0) Nname=*++argv;
     // prefix for output files
     else if(strcmp(*argv,"-outfiles")==0 || strcmp(*argv,"-out")==0) outfiles=*++argv;
-    // which populations in ref panel to be ananlyzed, must agree with K
+    // which populations in ref panel to be ananlyzed, must agree with nPop
     else if(strcmp(*argv,"-whichPops")==0 || strcmp(*argv,"-pops")==0) pops=*++argv; 
     else if(strcmp(*argv,"-seed")==0||strcmp(*argv,"-s")==0) seed=atoi(*++argv); //int - atoi - char array to integer
     // flag for printing adjusted freqs
