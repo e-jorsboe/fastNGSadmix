@@ -4,7 +4,12 @@ Program for infering admixture proportions and doing PCA with a single NGS sampl
 
 For how to use program go to:
 http://www.popgen.dk/software/index.php/FastNGSadmix
- 
+
+The program has been published in Bioinformatics:
+Emil Jørsboe, Kristian Hanghøj, Anders Albrechtsen;
+fastNGSadmix: Admixture proportions and principal component analysis of a single NGS sample,
+Bioinformatics, btx474, https://doi.org/10.1093/bioinformatics/btx474
+
 Installation:
 =====
 
