@@ -71,7 +71,8 @@ args<-list(likes=NULL,
            dryrun = FALSE,
            out = 'output',
            PCs="1,2",
-           multiCores=1
+           multiCores=1,
+           saveCovar="NO"
 )
 ## if no argument aree given prints the need arguments and the optional ones with default
 des<-list(likes="input GL in beagle format",
@@ -81,8 +82,8 @@ des<-list(likes="input GL in beagle format",
           dryrun = '',
           out= "output filename prefix",
           PCs= "which Principal components to be ploted default 1 and 2",
-          multiCores= "using mclapply from the parallel package, denote how many cores to be used, if 1 normal lapply used - for number of cores use: parallel:::detectCores()"
-        
+          multiCores= "using mclapply from the parallel package, denote how many cores to be used, if 1 normal lapply used - for number of cores use: parallel:::detectCores()",
+          saveCovar="if covariance matrix of ref individuals should be stored for faster computation, depends on geno file used and pops analysed, YES or NO (default)"
           
           
 )
@@ -99,13 +100,13 @@ if(length(args)==0){
 }
 ###################################
 
+
 if(!require(snpStats)){
     print("You must install the R package: 'snpStats'")
     if(as.numeric(multiCores) > 1 & !require(parallel)){
         print("You must install the R packages: 'parallel' and 'snpStats'")
     }
 }
-
 
 ## for reading plink files using snpStats
 plinkV2<-function(plinkFile){
@@ -146,6 +147,7 @@ if(!all(k<-refpops%in%unique(pl$fam$V1))){
 ccol <- c("darkgreen","darkorange","goldenrod2","#A6761D","darkred","lightgreen","darkblue","lightblue")
 grDevices::palette(ccol)
 gar<-grDevices::dev.off()
+
 
 ## used for calculating the covariance entries between input data and ref indis without normalizing
 glfunc <- function(x,G_mat,my2,pre_norm,geno_test2) {
@@ -192,34 +194,45 @@ generateBarplot<-function(admix,sorting,out){
 }
 
 estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
-    
-    ## first PCA for ref pops based on all SNPs
-    geno_test<-pl$geno[ pl$fam[  pl$fam$V1%in%refpops,"V2"],]
-    ##snp row::sample col
-    geno_test <- t(geno_test)
-    ## too many NA, so put NA to 2 (major major) instead of removing column
-    geno_test[is.na(geno_test)] = 2 
-    my <- rowMeans(geno_test,na.rm=T)
-    freq<-my/2    
-    
-    keep<-freq>0 & freq < 1
-    geno_test<- geno_test[keep,]
-    freq<-freq[keep]
-    my<-my[keep]
-    
-    ind <- pl$fam[ pl$fam$V1%in%refpops,"V1"]    
+    out1<-dirname(out)
+    geno1<-basename(geno)
+    ind <- pl$fam[ pl$fam$V1%in%refpops,"V1"]
     table(ind)
-    ##normalizing the genotype matrix, 
-    ## sart because we square both de- and nominator in matrix multi
-    M <- (geno_test-my)/sqrt(2*freq*(1-freq))      
-    ##M[is.na(M)] <- 2
-    ##get the (almost) covariance matrix
-    print("Calculating covarinace matrix for reference individuals")
-    print("")
-    Xtmp<-crossprod(M,M)
-    ##Xtmp<-(t(M)%*%M)
-    ## normalizing the covariance matrix
-    X<-(1/nrow(geno_test))*Xtmp 
+
+    covarFilename<-paste0(out1,"/",geno1,paste0(refpops,collapse=""),".Rdata")
+    if(!file.exists(covarFilename)){
+    
+        ## first PCA for ref pops based on all SNPs
+        geno_test<-pl$geno[ pl$fam[  pl$fam$V1%in%refpops,"V2"],]
+        ##snp row::sample col
+        geno_test <- t(geno_test)
+        ## too many NA, so put NA to 2 (major major) instead of removing column
+        geno_test[is.na(geno_test)] = 2 
+        my <- rowMeans(geno_test,na.rm=T)
+        freq<-my/2            
+        keep<-freq>0 & freq < 1
+        geno_test<- geno_test[keep,]
+        freq<-freq[keep]
+        my<-my[keep]        
+        ##normalizing the genotype matrix, 
+        ## sart because we square both de- and nominator in matrix multi
+        M <- (geno_test-my)/sqrt(2*freq*(1-freq))      
+        ##M[is.na(M)] <- 2
+        ##get the (almost) covariance matrix
+        print("Calculating covarinace matrix for reference individuals")
+        print("")
+        Xtmp<-crossprod(M,M)
+        ##Xtmp<-(t(M)%*%M)
+        ## normalizing the covariance matrix
+        X<-(1/nrow(geno_test))*Xtmp
+        if(saveCovar=="YES"){
+            print(paste0("Saving covariance matrix of ref individuals to: ",covarFilename))
+            print(paste0("This can be disabled by setting saveCovar=NO"))
+            save(X,file=covarFilename)
+        }
+    } else{
+        load(paste0(covarFilename))
+    }
     
     ## if plink files reads and convert to beagle file
     if(plinkFile!=""){
@@ -239,7 +252,7 @@ estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
         print("Duplicate markers in beagle or plinkFile file - fix this!")
         stop()
     }
-
+    
     ## overlapping sites with ref genos
     rownames(GL.raw2) <- GL.raw2[,1]
     GL.raw2<-GL.raw2[ GL.raw2[,1]%in%paste(pl$bim$V1,pl$bim$V4,sep="_"),]
@@ -250,7 +263,7 @@ estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
     if(any(c(0,1,2,3)%in%GL.raw2[,2]) | any(c(0,1,2,3)%in%GL.raw2[,3])){
         GL.raw2[,2]<-sapply(GL.raw2[,2], function(x) ifelse(x==0,"A",ifelse(x==1,"C",ifelse(x==2,"G",ifelse(x==3,"T",x)))))
         GL.raw2[,3]<-sapply(GL.raw2[,3], function(x) ifelse(x==0,"A",ifelse(x==1,"C",ifelse(x==2,"G",ifelse(x==3,"T",x)))))
-    
+        
     }
     
     print("The overlap between input and genos is:")
