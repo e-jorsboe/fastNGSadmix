@@ -72,7 +72,9 @@ args<-list(likes=NULL,
            out = 'output',
            PCs="1,2",
            multiCores=1,
-           saveCovar="NO"
+           saveCovar="NO",
+           fumagalli="NO",
+           onlyPrior="NO"
 )
 ## if no argument aree given prints the need arguments and the optional ones with default
 des<-list(likes="input GL in beagle format",
@@ -83,7 +85,9 @@ des<-list(likes="input GL in beagle format",
           out= "output filename prefix",
           PCs= "which Principal components to be ploted default 1 and 2",
           multiCores= "using mclapply from the parallel package, denote how many cores to be used, if 1 normal lapply used - for number of cores use: parallel:::detectCores()",
-          saveCovar="if covariance matrix of ref individuals should be stored for faster computation, depends on geno file used and pops analysed, YES or NO (default)"
+          saveCovar="if covariance matrix of ref individuals should be stored for faster computation, depends on geno file used and pops analysed, YES or NO (default)",
+          fumagalli="Use fumagalli method where genotypes between individuals are assumed to be independent only give the data, set YES or NO (default)",
+          onlyPrior="Run analyses with uniform genotype likelihoods, meaning that only the prior is used for inferring the covariance matrix, set YES or NO (default)"
           
           
 )
@@ -293,14 +297,23 @@ estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
     my2<-my2[keep2]
     popFreqs2<-popFreqs2[keep2,]
     geno_test2<-geno_test2[keep2,]
+
+    if(onlyPrior=="YES"){
+        ## uniform GLs
+        GL.raw2[,4:6]<-1/3
+    }
     
     ## calculating admixture adjusted freqs
     hj <- as.matrix(popFreqs2) %*% t(admix[1,])
     hj_inv <- 1-hj ## sites X 1
     gs <- cbind(hj**2,2*hj*hj_inv,hj_inv**2) ## Sites X 3
     ## likelihood P(X|G=g)P(G=g|Q,F)
-    pre <- as.numeric(as.matrix(GL.raw2[,4:6]))*gs
-    ## normalizing likelihoods
+    if(fumagalli=="YES"){
+        pre <- as.numeric(as.matrix(GL.raw2[,4:6]))*cbind(freq2**2,2*freq2*(1-freq2),(1-freq2)**2)
+    } else{
+        pre <- as.numeric(as.matrix(GL.raw2[,4:6]))*gs
+    }
+    ## normalizing likelihoods - the denominator sum(P(X_j|G_j=g)P(G_j=g|h_j))
     pre_norm <- pre/rowSums(pre)
     ## can have issues of pre being only 0's and thereby dividing by 0, yeilding NAs
     pre_norm[is.na(pre_norm)]<-0 
