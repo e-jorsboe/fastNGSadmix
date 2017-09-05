@@ -87,9 +87,9 @@ grDevices::palette(ccol)
 gar<-grDevices::dev.off()
 
 ## pca coordinates of ref individuals with pop label
-r1<-cbind(fam$V1,m0)
+r1<-cbind(fam$V1,fam$V2,m0)
 ## pca coordinates of vikings with id
-r2<-cbind(rep(groupName,nrow(res)),res)
+r2<-cbind(rep(groupName,length(pcs)),sapply(basename(pcs),function(x) gsub("_covar.txt","",x)),res)
 rownames(r2)<-NULL
 colnames(r2)<-colnames(r1)
 pcaPoints<-rbind(r1,r2)
@@ -106,5 +106,5 @@ legend("bottomright",cex=2,pch=c(rep(15,length(unique(fam$V1))),4),col=c(unique(
 
 dev.off()
 if(!createdError){
-	system("rm -r procustesPCs")
+    system("rm -r procustesPCs")
 }
