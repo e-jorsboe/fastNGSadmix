@@ -275,7 +275,7 @@ estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
     print("")
     
     ## those were alleles agree should be flipped like for refPanel, so all genotypes point in same direction
-    flip<-sapply(1:nrow(GL.raw2),function(x) GL.raw2[x,2]==bim2[x,6] & GL.raw2[x,3]==bim2[x,5])  
+    flip<-GL.raw2[,2]==bim2[,6] & GL.raw2[,3]==bim2[,5]
     geno_test2<-geno2[ pl$fam[  pl$fam$V1%in%refpops,"V2"],]
         
     ## hereby only constructing ref panel of individuals/pops in admix file
