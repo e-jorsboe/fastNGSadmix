@@ -95,7 +95,7 @@ colnames(r2)<-colnames(r1)
 pcaPoints<-rbind(r1,r2)
 
 bitmap(paste0("procrustesPCA",groupName,".png"),res=300)
-write.table(pcaPoints,paste0("procrustesPCA.txt"),col=F,row=F,qu=F)
+write.table(pcaPoints,paste0("procrustesPCA",groupName,".txt"),col=F,row=F,qu=F)
 
 ## should we also be able to have different labels for the samples being procrustered on?
 
