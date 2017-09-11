@@ -102,7 +102,7 @@ write.table(pcaPoints,paste0("procrustesPCA",groupName,".txt"),col=F,row=F,qu=F)
 plot(m0,col=as.factor(c(fam$V1)),lwd=2,ylim=ylim,ylab="PC2",xlab="PC1",main=paste0("procrustes PCA with ",groupName))
 points(res,pch=4)
 
-legend("bottomright",cex=2,pch=c(rep(15,length(unique(fam$V1))),4),col=c(unique(as.factor(c(fam$V1))),"black"),legend=c(paste0(unique(as.factor(c(fam$V1)))),groupName))
+legend("bottomright",cex=2,pch=c(rep(15,length(unique(fam$V1))),4),col=c(unique(as.factor(fam$V1)),"black"),legend=c(paste0(unique(as.factor(c(fam$V1)))),groupName))
 
 dev.off()
 if(!createdError){
