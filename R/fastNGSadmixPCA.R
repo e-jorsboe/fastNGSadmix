@@ -72,9 +72,10 @@ args<-list(likes=NULL,
            out = 'output',
            PCs="1,2",
            multiCores=1,
-           saveCovar="NO",
-           fumagalli="NO",
-           onlyPrior="NO"
+           saveCovar="0",
+           fumagalli="0",
+           onlyPrior="0",
+           overlapRef="0"
 )
 ## if no argument aree given prints the need arguments and the optional ones with default
 des<-list(likes="input GL in beagle format",
@@ -85,10 +86,10 @@ des<-list(likes="input GL in beagle format",
           out= "output filename prefix",
           PCs= "which Principal components to be ploted default 1 and 2",
           multiCores= "using mclapply from the parallel package, denote how many cores to be used, if 1 normal lapply used - for number of cores use: parallel:::detectCores()",
-          saveCovar="if covariance matrix of ref individuals should be stored for faster computation, depends on geno file used and pops analysed, YES or NO (default)",
-          fumagalli="Use fumagalli method where genotypes between individuals are assumed to be independent only give the data, set YES or NO (default)",
-          onlyPrior="Run analyses with uniform genotype likelihoods, meaning that only the prior is used for inferring the covariance matrix, set YES or NO (default)"
-          
+          saveCovar="if covariance matrix of ref individuals should be stored for faster computation, depends on geno file used and pops analysed, 1 or 0 (default)",
+          fumagalli="Use fumagalli method where genotypes between individuals are assumed to be independent only give the data, set 1 or 0 (default)",
+          onlyPrior="Run analyses with uniform genotype likelihoods, meaning that only the prior is used for inferring the covariance matrix, set 1 or 0 (default)",
+          overlapRef="Bases covariance matrix for ref genos on only overlapping markers with input, set 1 or 0 (default)"          
           
 )
 
@@ -177,7 +178,7 @@ generateBarplot<-function(admix,sorting,out){
         
         bitmap(paste(out,"_","quantile_","admixBarplot.png",sep=""),res=300)
         par(mar=margins)
-        b1<-barplot(as.numeric(admix[1,]) ,col=cols[ cols$pop%in%colnames(admix),"col"],ylim=c(0,1.1))
+        b1<-barplot(as.numeric(admix[1,]),ylab="admixture proportion",col=cols[ cols$pop%in%colnames(admix),"col"],ylim=c(0,1.1))
         
         segments(b1,m[1,],b1,m[2,])
         segments(b1-0.2,m[1,],b1+0.2,m[1,])
@@ -189,7 +190,7 @@ generateBarplot<-function(admix,sorting,out){
         
         bitmap(paste(out,"_admixBarplot.png",sep=""),res=300)
         par(mar=margins)
-        b1<-barplot(as.numeric(admix[1,]) ,col=cols[ cols$pop%in%colnames(admix),"col"],ylim=c(0,1.1))
+        b1<-barplot(as.numeric(admix[1,]),ylab="admixture proportion",col=cols[ cols$pop%in%colnames(admix),"col"],ylim=c(0,1.1))
         par(xpd=T)
         legend("topright",inset=c(0.0,-0.2),legend=cols[ cols$pop%in%colnames(admix),"pop"],fill=cols[ cols$pop%in%colnames(admix),"col"],cex=1.5)
         
@@ -198,6 +199,28 @@ generateBarplot<-function(admix,sorting,out){
 }
 
 estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
+
+    ## if plink files reads and convert to beagle file
+    if(plinkFile!=""){
+        plInput<-plinkV2(paste(plinkFile,sep=""))
+        GL.raw<-cbind(paste(plInput$bim$V1,plInput$bim$V4,sep="_"),plInput$bim$V6,plInput$bim$V5,0,0,0)
+        GL.raw[ which(plInput$geno[1,]==2),4]<-1
+        GL.raw[ which(plInput$geno[1,]==1),5]<-1
+        GL.raw[ which(plInput$geno[1,]==0),6]<-1
+        GL.raw<-GL.raw[ !is.na(plInput$geno[1,]),]
+        GL.raw2<-as.data.frame(GL.raw,stringsAsFactors=F)
+        colnames(GL.raw2)<-c("marker", "allele1", "allele2", "Ind0", "Ind0.1", "Ind0.2")
+        
+    } else{
+        GL.raw2 <- read.table(paste(likes,sep=""),as.is=T,h=T,colC=c("character","integer","numeric")[c(1,1,1,3,3,3)])
+    }
+    if(any(duplicated(GL.raw2[,1]))){    
+        print("Duplicate markers in beagle or plinkFile file - fix this!")
+        stop()
+    }
+    ## overlapping sites with ref genos
+    rownames(GL.raw2) <- GL.raw2[,1]
+    
     out1<-dirname(out)
     geno1<-basename(geno)
     ind <- pl$fam[ pl$fam$V1%in%refpops,"V1"]
@@ -205,9 +228,15 @@ estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
 
     covarFilename<-paste0(out1,"/",geno1,paste0(refpops,collapse=""),".Rdata")
     if(!file.exists(covarFilename)){
-    
-        ## first PCA for ref pops based on all SNPs
+
         geno_test<-pl$geno[ pl$fam[  pl$fam$V1%in%refpops,"V2"],]
+        if(overlapRef=="1"){
+            print(paste0("Only using overlap of markers for ref genos - cannot save covariance matrix!"))
+            keep<-paste(pl$bim$V1,pl$bim$V4,sep="_")%in%GL.raw2[,1]
+            geno_test<-geno_test[ ,keep]            
+        }
+        
+        ## first PCA for ref pops based on all SNPs
         ##snp row::sample col
         geno_test <- t(geno_test)
         ## too many NA, so put NA to 2 (major major) instead of removing column
@@ -229,36 +258,15 @@ estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
         ##Xtmp<-(t(M)%*%M)
         ## normalizing the covariance matrix
         X<-(1/nrow(geno_test))*Xtmp
-        if(saveCovar=="YES"){
+        if(saveCovar=="1" & overlapRef!="1"){
             print(paste0("Saving covariance matrix of ref individuals to: ",covarFilename))
-            print(paste0("This can be disabled by setting saveCovar=NO"))
+            print(paste0("This can be disabled by setting saveCovar=0"))
             save(X,file=covarFilename)
         }
     } else{
         load(paste0(covarFilename))
     }
     
-    ## if plink files reads and convert to beagle file
-    if(plinkFile!=""){
-        plInput<-plinkV2(paste(plinkFile,sep=""))
-        GL.raw<-cbind(paste(plInput$bim$V1,plInput$bim$V4,sep="_"),plInput$bim$V6,plInput$bim$V5,0,0,0)
-        GL.raw[ which(plInput$geno[1,]==2),4]<-1
-        GL.raw[ which(plInput$geno[1,]==1),5]<-1
-        GL.raw[ which(plInput$geno[1,]==0),6]<-1
-        GL.raw<-GL.raw[ !is.na(plInput$geno[1,]),]
-        GL.raw2<-as.data.frame(GL.raw,stringsAsFactors=F)
-        colnames(GL.raw2)<-c("marker", "allele1", "allele2", "Ind0", "Ind0.1", "Ind0.2")
-        
-    } else{
-        GL.raw2 <- read.table(paste(likes,sep=""),as.is=T,h=T,colC=c("character","integer","numeric")[c(1,1,1,3,3,3)])
-    }
-    if(any(duplicated(GL.raw2[,1]))){    
-        print("Duplicate markers in beagle or plinkFile file - fix this!")
-        stop()
-    }
-    
-    ## overlapping sites with ref genos
-    rownames(GL.raw2) <- GL.raw2[,1]
     GL.raw2<-GL.raw2[ GL.raw2[,1]%in%paste(pl$bim$V1,pl$bim$V4,sep="_"),]
     bim2<-pl$bim[ paste(pl$bim$V1,pl$bim$V4,sep="_")%in%GL.raw2[,1],]
     geno2<-pl$geno[ ,colnames(pl$geno)%in%bim2$V2]
@@ -298,7 +306,7 @@ estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
     popFreqs2<-popFreqs2[keep2,]
     geno_test2<-geno_test2[keep2,]
 
-    if(onlyPrior=="YES"){
+    if(onlyPrior=="1"){
         ## uniform GLs
         GL.raw2[,4:6]<-1/3
     }
@@ -308,7 +316,7 @@ estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
     hj_inv <- 1-hj ## sites X 1
     gs <- cbind(hj**2,2*hj*hj_inv,hj_inv**2) ## Sites X 3
     ## likelihood P(X|G=g)P(G=g|Q,F)
-    if(fumagalli=="YES"){
+    if(fumagalli=="1"){
         pre <- as.numeric(as.matrix(GL.raw2[,4:6]))*cbind(freq2**2,2*freq2*(1-freq2),(1-freq2)**2)
     } else{
         pre <- as.numeric(as.matrix(GL.raw2[,4:6]))*gs
