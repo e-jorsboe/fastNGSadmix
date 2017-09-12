@@ -373,6 +373,7 @@ PCAplotV2 = function(cova,ind,admix,out,PCs) {
     pdf(paste0(out,'_PCAplot.pdf'))
     par(mar=c(5, 4, 4, 8) + 0.1)
 
+    ## this maps pop into some colour number
     pcaColours<-sapply(a$pop[1:(nrow(a)-1)], function(x) cols[ cols$pop==x,"col"])
     
     plot(a$PC1[1:(nrow(a)-1)],a$PC2[1:(nrow(a)-1)],xlab=paste('PC',PCs[1],' (%)',PC_12[PCs[1]]),ylab=paste('PC',PCs[2],' (%)',PC_12[2]),col=pcaColours,pch=16,ylim=c(min(a$PC2),max(a$PC2)),xlim=c(min(a$PC1),max(a$PC1)))
@@ -380,7 +381,7 @@ PCAplotV2 = function(cova,ind,admix,out,PCs) {
     print("Input individual ('SAMPLE') is plotted at in PCA plot:")
     print(paste(a$PC1[nrow(a)],a$PC2[nrow(a)]))
     par(xpd=TRUE)
-    legend("topright",inset=c(-0.3,0),legend=unique(as.factor(a$pop[1:(nrow(a)-1)])),fill=unique(pcaColours))
+    legend("topright",inset=c(-0.3,0),legend=unique(a$pop[1:(nrow(a)-1)]),fill=unique(pcaColours))
     garbage<-dev.off()
 }
 
