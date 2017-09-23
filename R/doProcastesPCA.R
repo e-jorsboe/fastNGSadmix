@@ -18,8 +18,8 @@ if(length(arguments)==0){
 
 
 fam<-read.table(famFile,as.is=T)
-
-
+## translate pops to colours like in fastNGSadmixPCA
+cols<-as.data.frame(cbind(pop=unique(fam$V1),col=as.integer(as.factor(unique(fam$V1)))))
 
 files2<-list.files(dir,pattern="_covar.txt")
 files2<-sapply(files2,function(x) unlist(strsplit(x,"_covar.txt"))[1])
@@ -28,12 +28,10 @@ info<-read.table(infoFile,as.is=T)
 files<-list.files(dir,pattern="_covar.txt",full=T)
 
 covar<-read.table(files[1],as.is=T,h=T)
-
  
 ## the ref PCA has order of individuals found in _covar.txt files
 fam<-fam[ fam$V2%in%rownames(covar),]
 ## colours of PCA based on order of appearance in .fam file
-cols<-as.data.frame(cbind(pop=unique(fam$V1),col=as.integer(as.factor(unique(fam$V1)))))
 
 fam<-fam[order(match(fam$V2,rownames(covar)[1:(length(covar)-1)])),]
 
