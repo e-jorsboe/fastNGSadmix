@@ -2,18 +2,30 @@
 
 ########### do not change ################3
 l<-commandArgs(TRUE)
-getArgs<-function(x,l)
-  unlist(strsplit(grep(paste("^",x,"=",sep=""),l,val=T),"="))[2]
+getArgs<-function(x,l){
+    unlist(strsplit(grep(paste("^",x,"=",sep=""),l,val=T),"="))[2]
+}
 Args<-function(l,args){
-  if(! all(sapply(strsplit(l,"="),function(x)x[1])%in%names(args))){
-    cat("Error -> ",l[!sapply(strsplit(l,"="),function(x)x[1])%in%names(args)]," is not a valid argument")
-    q("no")
-  }
-  arguments<-list()
-  for(a in names(args)){
-    arguments[[a]]<-getArgs(a,l)
+    if(length(l)%%2!=0){
+        cat("Error -> not all options have an argument!\n")
+        q("no")       
+    }
+    if(sum(grepl("=$",l))!=length(l)/2){
+        cat("Error -> not correct number of options - or argument ending with =!\n")
+        q("no")       
+    }
+    ## this assumes option= argument structure!
+    l<-sapply(seq(1,(length(l)-1),2),function(x) paste0(l[x],l[x+1]))
     
-  }
+    if(! all(sapply(strsplit(l,"="),function(x)x[1])%in%names(args))){
+        cat("Error -> ",l[!sapply(strsplit(l,"="),function(x)x[1])%in%names(args)]," is not a valid argument")
+        q("no")
+    }
+    arguments<-list()
+    for(a in names(args)){
+        arguments[[a]]<-getArgs(a,l)
+    }
+    
   ## check for plinkFile or beagle file
   if(!any(c("plinkFile","likes")%in%names(arguments))){
     cat("Error -> plinkFile or likes argument has to be supplied!\n")
@@ -215,12 +227,19 @@ estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
         GL.raw2 <- read.table(paste(likes,sep=""),as.is=T,h=T,colC=c("character","integer","numeric")[c(1,1,1,3,3,3)])
     }
     if(any(duplicated(GL.raw2[,1]))){    
-        print("Duplicate markers in beagle or plinkFile file - fix this!")
+        print("Duplicate markers in beagle or plinkFile input file - fix this!")
         stop()
     }
+
+    if(any(duplicated(paste(pl$bim$V1,pl$bim$V4,sep="_")))){    
+        print("Duplicate markers in reference panel genotypes - fix this!")
+        stop()
+    }
+
+    
     ## overlapping sites with ref genos
     rownames(GL.raw2) <- GL.raw2[,1]
-    
+   
     out1<-dirname(out)
     geno1<-basename(geno)
     ind <- pl$fam[ pl$fam$V1%in%refpops,"V1"]
@@ -270,6 +289,9 @@ estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
     GL.raw2<-GL.raw2[ GL.raw2[,1]%in%paste(pl$bim$V1,pl$bim$V4,sep="_"),]
     bim2<-pl$bim[ paste(pl$bim$V1,pl$bim$V4,sep="_")%in%GL.raw2[,1],]
     geno2<-pl$geno[ ,colnames(pl$geno)%in%bim2$V2]
+
+    ## makes sure beagle or plinkFile input file ordered as reference genotypes
+    GL.raw2<-GL.raw2[order(match(GL.raw2[,1],paste(bim2[,1],bim2[,4],sep="_"))),]
     
     ## if alleles coded as 0,1,2,3 instead of A,C,G,T
     if(any(c(0,1,2,3)%in%GL.raw2[,2]) | any(c(0,1,2,3)%in%GL.raw2[,3])){
