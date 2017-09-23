@@ -19,6 +19,8 @@ if(length(arguments)==0){
 
 fam<-read.table(famFile,as.is=T)
 
+
+
 files2<-list.files(dir,pattern="_covar.txt")
 files2<-sapply(files2,function(x) unlist(strsplit(x,"_covar.txt"))[1])
 info<-read.table(infoFile,as.is=T)
@@ -27,8 +29,12 @@ files<-list.files(dir,pattern="_covar.txt",full=T)
 
 covar<-read.table(files[1],as.is=T,h=T)
 
+ 
 ## the ref PCA has order of individuals found in _covar.txt files
 fam<-fam[ fam$V2%in%rownames(covar),]
+## colours of PCA based on order of appearance in .fam file
+cols<-as.data.frame(cbind(pop=unique(fam$V1),col=as.integer(as.factor(unique(fam$V1)))))
+
 fam<-fam[order(match(fam$V2,rownames(covar)[1:(length(covar)-1)])),]
 
 filesName <- as.vector(sapply(files, function(x) unlist(strsplit(basename(x),"_covar.txt")[1])))
@@ -99,10 +105,12 @@ write.table(pcaPoints,paste0("procrustesPCA",groupName,".txt"),col=F,row=F,qu=F)
 
 ## should we also be able to have different labels for the samples being procrustered on?
 
-plot(m0,col=as.integer(as.factor(c(fam$V1))),lwd=2,ylim=ylim,ylab="PC2",xlab="PC1",main=paste0("procrustes PCA with ",groupName))
+pcaColours<-sapply(fam$V1, function(x) cols[ cols$pop==x,"col"])
+
+plot(m0,col=pcaColours,lwd=2,ylim=ylim,ylab="PC2",xlab="PC1",main=paste0("procrustes PCA with ",groupName))
 points(res,pch=4)
 
-legend("bottomright",cex=1,pch=c(rep(15,length(unique(fam$V1))),4),col=c(as.integer(as.factor(levels(as.factor(fam$V1)))),"black"),legend=c(paste0(levels(as.factor(c(fam$V1)))),groupName))
+legend("bottomright",cex=1,pch=c(rep(15,length(unique(fam$V1))),4),col=c(unique(pcaColours),"black"),legend=c(paste0(unique(fam$V1)),groupName))
 
 dev.off()
 if(!createdError){
