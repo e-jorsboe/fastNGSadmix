@@ -387,13 +387,13 @@ estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
 
 
 
-PCAplotV2 = function(cova,ind,admix,out,PCs,onlyPlot=F) {
+PCAplotV2 = function(cova,ind,admix,out,PCs,onlyTables=F) {
     ## eigen decomposition of covariance matrix for PCA
     E<-eigen(cova)
     ## writes out eigenvectors and values
     write.table(cbind(rownames(cova),E$vectors),paste0(out,'_eigenvecs.txt'),row=T,quote=F,col=F)
     write.table(E$values,paste0(out,'_eigenvals.txt'),row=T,quote=F,col=F)
-    if(onlyPlot){
+    if(onlyTables){
         return()
     }
     ## extracts chosen PCs
@@ -419,7 +419,7 @@ PCAplotV2 = function(cova,ind,admix,out,PCs,onlyPlot=F) {
 pop_list<- estimateAdmixPCA(likes=likes,plinkFile=plinkFile,admix=admix,refpops = refpops,out = out)
 write.table(pop_list$covar, file=paste0(out,'_covar.txt'),quote=F)
 write.table(cbind(rownames(pop_list$covar),c(pop_list$ind,"SAMPLE")), file=paste0(out,'_indi.txt'),quote=F,col=F,row=F)
-PCAplotV2(pop_list$covar,pop_list$indi,admix=admix,out,PCs=sort(as.numeric(unlist(strsplit(PCs,",")))),onlyPlot=(doPlots=="1"))
+PCAplotV2(pop_list$covar,pop_list$indi,admix=admix,out,PCs=sort(as.numeric(unlist(strsplit(PCs,",")))),onlyTables=(doPlots=="0"))
 if(doPlots=="1"){
     generateBarplot(admix=admix,sorting = unique(pop_list$ind),out = out)    
 }
