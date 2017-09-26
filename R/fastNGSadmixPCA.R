@@ -10,12 +10,12 @@ Args<-function(l,args){
         cat("Error -> not all options have an argument!\n")
         q("no")       
     }
-    if(sum(grepl("=$",l))!=length(l)/2){
-        cat("Error -> not correct number of options - or argument ending with =!\n")
+    if(sum(grepl("^-",l))!=length(l)/2){
+        cat("Error -> not correct number of options - or argument starting with -\n")
         q("no")       
     }
-    ## this assumes option= argument structure!
-    l<-sapply(seq(1,(length(l)-1),2),function(x) paste0(l[x],l[x+1]))
+    ## this assumes -option argument structure!
+    l<-sapply(seq(1,(length(l)-1),2),function(x) paste0(gsub("^-","",l[x]),"=",l[x+1]))
     
     if(! all(sapply(strsplit(l,"="),function(x)x[1])%in%names(args))){
         cat("Error -> ",l[!sapply(strsplit(l,"="),function(x)x[1])%in%names(args)]," is not a valid argument")
@@ -36,16 +36,14 @@ Args<-function(l,args){
   } else if(!all(c("qopt")%in%names(arguments))){
     cat("Error -> estimated admixture proporotions have to be supplied from fastNGSadmix, as .qopt file!\n")
     q("no")  
-  } else if(!all(c("geno")%in%names(arguments))){
+  } else if(!all(c("ref")%in%names(arguments))){
     cat("Error -> genotypes of reference populations have to be supplied as plinkFile binary files!\n")
-    q("no")
+    q("no")    
   } else if(c("plinkFile")%in%names(arguments)){
     arguments$likes<-""
   } else if(c("likes")%in%names(arguments)){
     arguments$plinkFile<-""
-  } else if(c("qopt")%in%names(arguments)){
-    arguments$qopt<-""
-  }
+  } 
   
   if(any(!names(args)%in%names(arguments)&sapply(args,is.null))){
     cat("Error -> ",names(args)[!names(args)%in%names(arguments)&sapply(args,is.null)]," is not optional!\n")
@@ -78,30 +76,32 @@ print.args<-function(args,des){
 args<-list(likes=NULL,
            plinkFile=NULL,
            ## called genotype of reference panel 
-           geno = NULL, 
+           ref = NULL, 
            qopt = NULL,
            dryrun = FALSE,
            out = 'output',
            PCs="1,2",
            multiCores=1,
            saveCovar="0",
-           fumagalli="0",
+           ngsTools="0",
            onlyPrior="0",
-           overlapRef="0"
+           overlapRef="0",
+           doPlots="1"
 )
 ## if no argument aree given prints the need arguments and the optional ones with default
 des<-list(likes="input GL in beagle format",
           plinkFile="input binary plink in bed format",
-          geno = 'plink binary files filename with reference individuals for PCA',
+          ref = 'plink binary files filename with reference individuals for PCA',
           qopt= "estimated admixture proportions from fastNGSadmix, as .qopt file",
           dryrun = '',
           out= "output filename prefix",
           PCs= "which Principal components to be ploted default 1 and 2",
           multiCores= "using mclapply from the parallel package, denote how many cores to be used, if 1 normal lapply used - for number of cores use: parallel:::detectCores()",
           saveCovar="if covariance matrix of ref individuals should be stored for faster computation, depends on geno file used and pops analysed, 1 or 0 (default)",
-          fumagalli="Use fumagalli method where genotypes between individuals are assumed to be independent only give the data, set 1 or 0 (default)",
+          ngsTools="Use ngsTools' (Fumagalli et al., 2013) method where genotypes between individuals are assumed to be independent only give the data, set 1 or 0 (default)",
           onlyPrior="Run analyses with uniform genotype likelihoods, meaning that only the prior is used for inferring the covariance matrix, set 1 or 0 (default)",
-          overlapRef="Bases covariance matrix for ref genos on only overlapping markers with input, set 1 or 0 (default)"          
+          overlapRef="Bases covariance matrix for ref genos on only overlapping markers with input, set 1 or 0 (default)",
+          doPlots="Option for if admixture plot and PCA plot should be generated or just covararinace matrix, eigenvectors and eigenvalues, set 1 (default) or 0:"
           
 )
 
@@ -139,7 +139,7 @@ plinkV2<-function(plinkFile){
   list(geno=pl2,bim=bim,fam=fam,pl=pl)
 }
 
-pl<-plinkV2(geno)
+pl<-plinkV2(ref)
 admix<-read.table(qopt,h=T,as.is=T)
 ## refpops are analyzed pops for admixture estimation
 refpops<-colnames(admix)
@@ -153,13 +153,19 @@ if(dryrun){
 }
 
 if(!all(k<-refpops%in%unique(pl$fam$V1))){   
-
     cat("These are not part of the genos:\n")
     print(refpops[!k])
     cat("use these pops from the genos instead\n")
     print(unique(pl$fam$V1))
     stop()
 }
+
+
+if(!all(c(saveCovar,ngsTools,onlyPrior,overlapRef,doPlots)%in%c("0","1"))){
+    cat("saveCovar, ngsTools, onlyPrior, overlapRef or doPlots arguments must be 0 or 1\n")    
+    stop()        
+}
+        
 
 ccol <- c("darkgreen","darkorange","goldenrod2","#A6761D","darkred","lightgreen","darkblue","lightblue")
 grDevices::palette(ccol)
@@ -241,11 +247,11 @@ estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
     rownames(GL.raw2) <- GL.raw2[,1]
    
     out1<-dirname(out)
-    geno1<-basename(geno)
+    ref1<-basename(ref)
     ind <- pl$fam[ pl$fam$V1%in%refpops,"V1"]
     table(ind)
 
-    covarFilename<-paste0(out1,"/",geno1,paste0(refpops,collapse=""),".Rdata")
+    covarFilename<-paste0(out1,"/",ref1,paste0(refpops,collapse=""),".Rdata")
     if(!file.exists(covarFilename)){
 
         geno_test<-pl$geno[ pl$fam[  pl$fam$V1%in%refpops,"V2"],]
@@ -338,7 +344,7 @@ estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
     hj_inv <- 1-hj ## sites X 1
     gs <- cbind(hj**2,2*hj*hj_inv,hj_inv**2) ## Sites X 3
     ## likelihood P(X|G=g)P(G=g|Q,F)
-    if(fumagalli=="1"){
+    if(ngsTools=="1"){
         pre <- as.numeric(as.matrix(GL.raw2[,4:6]))*cbind(freq2**2,2*freq2*(1-freq2),(1-freq2)**2)
     } else{
         pre <- as.numeric(as.matrix(GL.raw2[,4:6]))*gs
@@ -381,12 +387,15 @@ estimateAdmixPCA<-function(likes=NULL,plinkFile=NULL,admix,refpops,out){
 
 
 
-PCAplotV2 = function(cova,ind,admix,out,PCs) {
+PCAplotV2 = function(cova,ind,admix,out,PCs,onlyPlot=F) {
     ## eigen decomposition of covariance matrix for PCA
     E<-eigen(cova)
     ## writes out eigenvectors and values
     write.table(cbind(rownames(cova),E$vectors),paste0(out,'_eigenvecs.txt'),row=T,quote=F,col=F)
     write.table(E$values,paste0(out,'_eigenvals.txt'),row=T,quote=F,col=F)
+    if(onlyPlot){
+        return()
+    }
     ## extracts chosen PCs
     PC_12 <- round(as.numeric(E$values/sum(E$values))[PCs],3)*100
     a <- data.frame(E$vectors[,PCs])
@@ -410,5 +419,7 @@ PCAplotV2 = function(cova,ind,admix,out,PCs) {
 pop_list<- estimateAdmixPCA(likes=likes,plinkFile=plinkFile,admix=admix,refpops = refpops,out = out)
 write.table(pop_list$covar, file=paste0(out,'_covar.txt'),quote=F)
 write.table(cbind(rownames(pop_list$covar),c(pop_list$ind,"SAMPLE")), file=paste0(out,'_indi.txt'),quote=F,col=F,row=F)
-generateBarplot(admix=admix,sorting = unique(pop_list$ind),out = out)
-PCAplotV2(pop_list$covar,pop_list$indi,admix=admix,out,PCs=sort(as.numeric(unlist(strsplit(PCs,",")))))
+PCAplotV2(pop_list$covar,pop_list$indi,admix=admix,out,PCs=sort(as.numeric(unlist(strsplit(PCs,",")))),onlyPlot=(doPlots=="1"))
+if(doPlots=="1"){
+    generateBarplot(admix=admix,sorting = unique(pop_list$ind),out = out)    
+}
