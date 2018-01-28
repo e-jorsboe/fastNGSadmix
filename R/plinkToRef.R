@@ -5,7 +5,7 @@ plinkFile<-unlist(args[1])
 if(length(args)==0){
 
     print("Arguments have to be supplied: ")
-    print("1. plinkFile to turn in to ref panel, 2. if remove Dups (1: yes, 0: no (default)), 3. Maf filter")
+    print("1. plinkFile to turn in to ref panel, 2. if remove Dups (1: yes (default), 0: no), 3. Maf filter")
     print("It is HIGHLY recommended to do missingness filter on data prior to creating a ref panel")
     q()
 }
@@ -16,7 +16,7 @@ maf<-0
 if(length(args)>1){
 
     if(!as.numeric(args[2])%in%c(0,1)){
-        print("2nd argument has to be  if remove Dups, and has to be 0 (no) or 1 (yes), 3rd argument is MAF cutoff")
+        print("2nd argument has to be if remove Dups, and has to be 0 (no) or 1 (yes), 3rd argument is MAF cutoff")
         q()
     }
     else{
