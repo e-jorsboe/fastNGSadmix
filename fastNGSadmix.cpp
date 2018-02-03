@@ -1373,9 +1373,7 @@ void info(){
   fprintf(stderr,"\t-whichPops Which populations from the ref panel to include in analysis, denotes number of populations (nPop) for admixture estimation\n \t If 'all' all pops in ref are analyzed, must be comma seperated (pop1,pop2,..)\n");
  
   fprintf(stderr,"Optional:\n");
-
-  //fprintf(stderr,"\t-haploid Raise this flag if haploid organism being analyzed, first two cols of beagle file will be used - does not work for plink!\n"); 
-
+  fprintf(stderr,"\t-haploid Raise this flag if haploid organism being analyzed, first two cols of beagle file will be used - does not work for plink!\n");
   fprintf(stderr,"\t-out Prefix for output files\n"); 
   fprintf(stderr,"\t-printFreq print admixture adjusted allele frequencies of reference panel + input individual (1: yes, 0: no (default))\n"); 
 
