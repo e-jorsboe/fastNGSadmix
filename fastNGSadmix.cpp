@@ -78,7 +78,7 @@ void minus1d(std::vector<double> &fst, std::vector<double> &sec,size_t x, std::v
     }
 }
 
-void minus(std::vector< std::vector<double> >  &fst,std::vector< std::vector<double> > &sec,size_t x,size_t y,std::vector< std::vector<double> > &res){
+void minusFunc(std::vector< std::vector<double> >  &fst,std::vector< std::vector<double> > &sec,size_t x,size_t y,std::vector< std::vector<double> > &res){
   for(size_t i=0;i<x;i++){
     for(size_t j=0;j<y;j++){
       res[i][j] = fst[i][j]-sec[i][j];
@@ -1118,7 +1118,7 @@ int emAccelV3(const std::vector<double> &genos, const std::vector<double> &nInd,
  
   // first EM run
   em(Q, F, nSites, nInd, nPop,genos, F_em1, Q_em1, F_org, ploidy);
-  minus(F_em1,F,nSites,nPop,F_diff1);
+  minusFunc(F_em1,F,nSites,nPop,F_diff1);
   minus1d(Q_em1,Q,nPop,Q_diff1);
   double sr2 = sumSquare1d(Q_diff1,nPop) + sumSquare(F_diff1,nSites,nPop);
   // checks if convergence
@@ -1128,7 +1128,7 @@ int emAccelV3(const std::vector<double> &genos, const std::vector<double> &nInd,
   }
   // second EM run
   em(Q_em1, F_em1, nSites, nInd, nPop,genos, F_em2, Q_em2, F_org, ploidy);
-  minus(F_em2,F_em1,nSites,nPop,F_diff2);
+  minusFunc(F_em2,F_em1,nSites,nPop,F_diff2);
   minus1d(Q_em2,Q_em1,nPop,Q_diff2);
   double sq2 = sumSquare1d(Q_diff2,nPop) + sumSquare(F_diff2,nSites,nPop);
   // checks if convergence - a second time
@@ -1136,7 +1136,7 @@ int emAccelV3(const std::vector<double> &genos, const std::vector<double> &nInd,
     //fprintf(stderr,"like is %f\n",likelihood(Q_new, F_new, nSites, nPop,genos));
     return 0;
   }
-  minus(F_diff2,F_diff1,nSites,nPop,F_diff3);
+  minusFunc(F_diff2,F_diff1,nSites,nPop,F_diff3);
   minus1d(Q_diff2,Q_diff1,nPop,Q_diff3);
   double sv2 = sumSquare1d(Q_diff3,nPop) + sumSquare(F_diff3,nSites,nPop);
   double alpha = sqrt(sr2/sv2);  
@@ -1159,7 +1159,7 @@ int emAccelV3(const std::vector<double> &genos, const std::vector<double> &nInd,
   if (fabs(alpha - 1) > 0.01){
     // we estimate new Q and F, with our inferred Q and F via alpha
     em(Q_new, F_new, nSites, nInd, nPop,genos,F_tmp,Q_tmp,F_org,ploidy);
-    minus(F_tmp,F_new,nSites,nPop,F_tmpDiff);
+    minusFunc(F_tmp,F_new,nSites,nPop,F_tmpDiff);
     minus1d(Q_tmp,Q_new,nPop,Q_tmpDiff);
     double res = sumSquare1d(Q_tmpDiff,nPop) + sumSquare(F_tmpDiff,nSites,nPop);
     double parnorm = (1/std::sqrt(nPop))*sumSquare1d(Q_tmpDiff,nPop) + (1/std::sqrt(nSites*nPop))*sumSquare(F_tmpDiff,nSites,nPop);
