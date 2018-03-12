@@ -1427,7 +1427,7 @@ void handler(int s) {
   float minMaf = 0.00;
   const char* lname = NULL;
   const char* fname = NULL;
-  char* pops = '\0';
+  char* pops = NULL;
   const char* Nname = NULL;
   const char* outfiles = NULL;
   const char* plinkName = NULL;
@@ -1512,7 +1512,7 @@ void handler(int s) {
     outfiles=plinkName;
   }
 
-  if(pops=='\0'){
+  if(pops==NULL){
     fprintf(stderr,"Please supply which populations to be analyzed - 'all' for all pops: -Nname\n");
     info();
  
