@@ -126,9 +126,6 @@ if(!require(snpStats)){
 }
 
 ## for reading plink files using snpStats
-
-
-
 pl<-snpStats::read.plink(ref)
 
 admix<-read.table(qopt,h=T,as.is=T)
@@ -151,20 +148,14 @@ if(!all(k<-refpops%in%unique(pl$fam[,1]))){
     stop()
 }
 
-
 if(!all(c(saveCovar,ngsTools,onlyPrior,overlapRef,doPlots)%in%c("0","1"))){
     cat("saveCovar, ngsTools, onlyPrior, overlapRef or doPlots arguments must be 0 or 1\n")    
     stop()        
 }
-        
 
 ccol <- c("darkgreen","darkorange","goldenrod2","#A6761D","darkred","lightgreen","darkblue","lightblue")
 grDevices::palette(ccol)
 gar<-grDevices::dev.off()
-
-require(pryr)
-print("MEM USED:")
-print(mem_used())
 
 ## used for calculating the covariance entries between input data and ref indis without normalizing
 glfunc <- function(x,G_mat,my2,pre_norm,genoFilter2) {
@@ -209,7 +200,6 @@ generateBarplot<-function(admix,sorting,out){
         garbage<-dev.off()
     }
 }
-
 
 filterSites<-function(pl,likes=NULL,plinkFile=NULL,refpops,out,ref){
     ## if plink files reads and convert to beagle file
@@ -256,9 +246,6 @@ filterSites<-function(pl,likes=NULL,plinkFile=NULL,refpops,out,ref){
         }
         
         ## first PCA for ref pops based on all SNPs
-        ##snp row::sample col
-
-        ## too many NA, so put NA to 2 (major major) instead of removing column
 
         my <- colMeans(as(genoFilter,"numeric"),na.rm=T)
         freq<-my/2            
@@ -267,26 +254,21 @@ filterSites<-function(pl,likes=NULL,plinkFile=NULL,refpops,out,ref){
         genoFilter<- as(genoFilter[,keep],"numeric")
         freq<-freq[keep]
         my<-my[keep]        
-        ##normalizing the genotype matrix, 
-        ## sart because we square both de- and nominator in matrix multi
+        
+        ## too many NA, so put NA to 2 (major major) instead of removing column
         genoFilter[is.na(genoFilter)] <- 2 
         genoFilter <- t(genoFilter)
 
-        print("MEM USED:")
-        print(mem_used())       
-        
+        ##normalizing the genotype matrix, 
         M <- (genoFilter-my)/sqrt(2*freq*(1-freq))      
-        ##M[is.na(M)] <- 2
+        
         ##get the (almost) covariance matrix
         print("Calculating covarinace matrix for reference individuals")
         print("")
         Xtmp<-crossprod(M,M)
         ##Xtmp<-(t(M)%*%M)
         ## normalizing the covariance matrix
-        X<-(1/nrow(genoFilter))*Xtmp
-
-        print("MEM USED:")
-        print(mem_used())
+        X<-(1/nrow(genoFilter))*Xtmp       
 
         if(saveCovar=="1" & overlapRef!="1"){
             print(paste0("Saving covariance matrix of ref individuals to: ",covarFilename))
@@ -311,9 +293,6 @@ filterSites<-function(pl,likes=NULL,plinkFile=NULL,refpops,out,ref){
         
     }
     
-    print("MEM USED:")
-    print(mem_used())
-    
     print("The overlap between input and genos is:")
     print(ncol(genoFilter))
     print("")
@@ -325,18 +304,11 @@ filterSites<-function(pl,likes=NULL,plinkFile=NULL,refpops,out,ref){
     popFreqs<-sapply(colnames(admix), function(x) colMeans(genoFilter[pl$fam[ pl$fam[,1]==x,2],],na.rm=T)/2)
     popFreqs<-popFreqs[,match(colnames(popFreqs),colnames(admix))]
 
-
-    print(fed(genoFilter))
     ##snp row::sample col
     genoFilter <- t(genoFilter) 
     genoFilter[is.na(genoFilter)] <- 2  
     genoFilter[flip,]<-2-genoFilter[flip,]
     popFreqs[!flip,]<-1-popFreqs[!flip,]
-
-
-    print(fed(genoFilter))
-    print("MEM USED:")
-    print(mem_used())
     
     return(list(genoFilter=genoFilter,GL.raw2=GL.raw2,flip=flip,popFreqs=popFreqs,X=X,ind=ind))
 
@@ -362,10 +334,6 @@ estimateAdmixPCA<-function(admix,refpops,out,genoFilter,flip,GL.raw2,popFreqs,X,
         GL.raw2[,4:6]<-1/3
     }
 
-    print("MEM USED:")
-    print(mem_used())
-    
-    
     ## calculating admixture adjusted freqs
     hj <- as.matrix(popFreqs) %*% t(admix[1,])
     hj_inv <- 1-hj ## sites X 1
@@ -393,10 +361,6 @@ estimateAdmixPCA<-function(admix,refpops,out,genoFilter,flip,GL.raw2,popFreqs,X,
         GL_called <- unlist(lapply(colnames(genoFilter2),glfunc,G_mat=G_mat,my2=my2,pre_norm=pre_norm,genoFilter2=genoFilter2))
     }
 
-    print("MEM USED:")
-    print(mem_used())
-
-    
     ## calculating covariances, between individual itself
     abc_single <- (G_mat-my2)*(G_mat-my2)*pre_norm
     
@@ -411,10 +375,6 @@ estimateAdmixPCA<-function(admix,refpops,out,genoFilter,flip,GL.raw2,popFreqs,X,
     X_2 <- as.data.frame(cbind(X_1,SAMPLE=GL_called_diag))   
     ## final normalized covariance matrix
     X_norm <- X_2
-
-    print("MEM USED:")
-    print(mem_used())
-    
     return(list(covar = X_norm,indi=ind))
     
 }
@@ -452,10 +412,11 @@ PCAplotV2 = function(cova,ind,admix,out,PCs,onlyTables=F) {
 }
 
 fL<-filterSites(pl,likes=likes,plinkFile=plinkFile,refpops=refpops,out=out,ref=ref)
-
 pop_list<- estimateAdmixPCA(admix=admix,refpops=refpops,out=out,genoFilter=fL$genoFilter,flip=fL$flip,GL.raw2=fL$GL.raw2,popFreqs=fL$popFreqs,X=fL$X,ind=fL$ind)
+
 write.table(pop_list$covar, file=paste0(out,'_covar.txt'),quote=F)
 write.table(cbind(rownames(pop_list$covar),c(pop_list$ind,"SAMPLE")), file=paste0(out,'_indi.txt'),quote=F,col=F,row=F)
+
 PCAplotV2(pop_list$covar,pop_list$indi,admix=admix,out,PCs=sort(as.numeric(unlist(strsplit(PCs,",")))),onlyTables=(doPlots=="0"))
 if(doPlots=="1"){
     generateBarplot(admix=admix,sorting = unique(pop_list$ind),out = out)    
