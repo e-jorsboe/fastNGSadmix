@@ -39,28 +39,15 @@ if(grepl("~",plinkFile)){
 
 require(snpStats)
 
-plinkV2<-function(plinkFile){
-  pl<-snpStats::read.plink(plinkFile)
-  pl2<-matrix(as(pl$genotypes,"numeric"),nrow=nrow(pl$genotypes),ncol=ncol(pl$genotypes))
-  colnames(pl2)<-colnames(pl$genotypes)
-  snp<-colnames(pl2)
-  ##    geno<-as.integer(as.integer(pl)-1)
-  ##dim(geno)<-dim(pl)
-  bim<-read.table(paste0(plinkFile,".bim"),as.is=T,header=F)
-  fam<-read.table(paste0(plinkFile,".fam"),as.is=T,header=F)
-  rownames(pl2)<-fam$V2
-  ind<-rownames(pl2)
-  list(geno=pl2,bim=bim,fam=fam)
-}
+pl<-snpStats::read.plink(plinkFile)
 
-pl<-plinkV2(plinkFile)
 
 ## 0 major/major 1 major/minor 2 minor/minor
 ## fam: FamilyID IndividualID
 l<-list()
-for(pop in unique(pl$fam$V1)){
-    indis<-pl$fam[ pl$fam$V1%in%pop,2]
-    y<-pl$geno[indis,]
+for(pop in unique(pl$fam[,1])){
+    indis<-pl$fam[ pl$fam[,1]%in%pop,2]
+    y<-as(pl$genotypes[indis,],"numeric")
     if(class(y)=="numeric"){
         ## calculates freq from values without NAs
         l[[pop]]<-1-sum(y,na.rm=T)/(sum(!is.na(y))*2)
@@ -75,24 +62,25 @@ f2<-do.call(cbind,l)
 ## id chr pos name A0_freq A1 French Han Karitiana Papuan Yoruba
 if(length(args)>2 & rmDups>0){
     ## bim has same number of sites as geno with same ordering
-    alleles<-apply(pl$bim,1,function(x) paste(sort(x[5:6]),collapse="_"))
-    idKeep<-!duplicated(paste0(pl$bim$V1,"_",pl$bim$V4,"_",alleles))
-    keep2<-apply(pl$geno,2,function(x) sum(x,na.rm = T)/(2*sum(!is.na(x))) >= maf & sum(x,na.rm = T)/(2*sum(!is.na(x))) <= 1-maf)
+    alleles<-apply(pl$map,1,function(x) paste(sort(x[5:6]),collapse="_"))
+    idKeep<-!duplicated(paste0(pl$map[,1],"_",pl$map[,4],"_",alleles))
+    geno<-as(pl$genotypes,"numeric")
+    keep2<-apply(geno,2,function(x) sum(x,na.rm = T)/(2*sum(!is.na(x))) >= maf & sum(x,na.rm = T)/(2*sum(!is.na(x))) <= 1-maf)
     keep<-keep2 & idKeep
-    f3<-cbind(id=as.vector(paste(trimws(pl$bim$V1[keep]),trimws(pl$bim$V4[keep]),sep="_")),chr=pl$bim$V1[keep],pos=pl$bim$V4[keep],name=pl$bim$V2[keep],A0_freq=pl$bim$V5[keep],A1=pl$bim$V6[keep],f2[keep,])
+    f3<-cbind(id=as.vector(paste(trimws(pl$map[,1][keep]),trimws(pl$map[,4][keep]),sep="_")),chr=pl$map[,1][keep],pos=pl$map[,4][keep],name=pl$map[,2][keep],A0_freq=pl$map[,5][keep],A1=pl$map[,6][keep],f2[keep,])
 } else if(length(args)>1 & rmDups>0){
     ## removes sites based on frequncy of site across all pops
-    alleles<-apply(pl$bim,1,function(x) paste(sort(x[5:6]),collapse="_"))
-    idKeep<-!duplicated(paste0(pl$bim$V1,"_",pl$bim$V4,"_",alleles))
+    alleles<-apply(pl$map,1,function(x) paste(sort(x[5:6]),collapse="_"))
+    idKeep<-!duplicated(paste0(pl$map[,1],"_",pl$map[,4],"_",alleles))
     keep<-idKeep
-    f3<-cbind(id=as.vector(paste(trimws(pl$bim$V1[keep]),trimws(pl$bim$V4[keep]),sep="_")),chr=pl$bim$V1[keep],pos=pl$bim$V4[keep],name=pl$bim$V2[keep],A0_freq=pl$bim$V5[keep],A1=pl$bim$V6[keep],f2[keep,])
+    f3<-cbind(id=as.vector(paste(trimws(pl$map[,1][keep]),trimws(pl$map[,4][keep]),sep="_")),chr=pl$map[,1][keep],pos=pl$map[,4][keep],name=pl$map[,2][keep],A0_freq=pl$map[,5][keep],A1=pl$map[,6][keep],f2[keep,])
 } else{
     
-    f3<-cbind(id=as.vector(paste(trimws(pl$bim$V1),trimws(pl$bim$V4),sep="_")),chr=pl$bim$V1,pos=pl$bim$V4,name=pl$bim$V2,A0_freq=pl$bim$V5,A1=pl$bim$V6,f2)  
+    f3<-cbind(id=as.vector(paste(trimws(pl$map[,1]),trimws(pl$map[,4]),sep="_")),chr=pl$map[,1],pos=pl$map[,4],name=pl$map[,2],A0_freq=pl$map[,5],A1=pl$map[,6],f2)  
 }
 
 
-nInd<-rbind(names(table(pl$fam$V1)),as.vector(table(pl$fam$V1)))
+nInd<-rbind(names(table(pl$fam[,1])),as.vector(table(pl$fam[,1])))
 if(grepl("/",plinkFile)){
     name<-tail(unlist(strsplit(plinkFile,"/")),1)
 } else{
