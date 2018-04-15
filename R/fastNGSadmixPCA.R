@@ -85,7 +85,7 @@ args<-list(likes=NULL,
            saveCovar="0",
            ngsTools="0",
            onlyPrior="0",
-           overlapRef="0",
+           overlapRef="1",
            doPlots="1"
 )
 ## if no argument aree given prints the need arguments and the optional ones with default
