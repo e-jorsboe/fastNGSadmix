@@ -3,7 +3,7 @@ appname := fastNGSadmix
 CC := gcc
 CXX := g++
 
-FLAGS := -O3 -lz -lpthread
+FLAGS := -O3 -lz
 
 srcfiles := $(shell find -maxdepth 1 -iname "*V3.cpp")
 objects  := $(patsubst %.c, %.o, $(srcfiles))
