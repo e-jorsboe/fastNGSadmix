@@ -1490,16 +1490,24 @@ void handler(int s) {
   //check that non optional options have been used. 
   if(lname==NULL and plinkName==NULL){
     fprintf(stderr,"Please supply a beagle or plink input file: -likes or -plink\n");
+    fprintf(stderr,"\n");
     info();
+    fprintf(stderr,"\n");
   } else if(fname==NULL){
     fprintf(stderr,"Please supply a reference panel: -fname\n");
+    fprintf(stderr,"\n");
     info();
+    fprintf(stderr,"\n");
   } else if(lname!=NULL and plinkName!=NULL){
     fprintf(stderr,"Please supply ONLY a beagle or plink input file, not BOTH: -likes or -plink\n");
+    fprintf(stderr,"\n");
     info();
+    fprintf(stderr,"\n");
   } else if(Nname==NULL){
     fprintf(stderr,"Please supply number of individauls file: -Nname\n");
+    fprintf(stderr,"\n");
     info();
+    fprintf(stderr,"\n");
   } 
 
   if(outfiles==NULL and lname!=NULL){
@@ -1514,9 +1522,11 @@ void handler(int s) {
 
   if(pops==NULL){
     fprintf(stderr,"Please supply which populations to be analyzed - 'all' for all pops: -Nname\n");
+    fprintf(stderr,"\n");
     info();
- 
+    fprintf(stderr,"\n");
   }
+  
   // max 10000 bootstraps 10 conv runs and 
   nBoot = std::min(std::max(nBoot,0),10000);
   nConv = std::min(std::max(nConv,1),10);
@@ -1524,8 +1534,8 @@ void handler(int s) {
   //out put files
   FILE *flog=openFile(outfiles,".log");
 
-  fprintf(stderr,"Input: likes=%s plink=%s Nname=%s fname=%s outfiles=%s\n",lname,plinkName,Nname,fname,outfiles);
-  fprintf(stderr,"Setup: seed=%d method=%d\n",seed,method);
+  fprintf(stderr,"Input: -likes %s -plink %s -Nname %s -fname %s -out %s -whichPops %s\n",lname,plinkName,Nname,fname,outfiles,pops);
+  fprintf(stderr,"Setup: -seed %d -method %d\n",seed,method);
   fprintf(stderr,"Ploidy of %i has been chosen\n\n",ploidy);
   if(method==0){
     fprintf(stderr,"The unaccelerated EM has been chosen\n");
@@ -1538,14 +1548,14 @@ void handler(int s) {
   } else{
     fprintf(stderr,"The adjusted method has been chosen\n");
   }
-  fprintf(stderr,"Convergence: maxIter=%d tol=%.8f\n",maxIter,tol);
+  fprintf(stderr,"Convergence: -maxIter %d -tol %.8f\n",maxIter,tol);
   fprintf(stderr,"The following number of bootstraps have been chosen: %i\n",nBoot);
   if(Qconv>0){
     fprintf(stderr,"Convergence via difference in Q values chosen, threshold of: %f\n",Qtol);    
   }
 
-  fprintf(flog,"Input: likes=%s plink=%s Nname=%s fname=%s outfiles=%s\n",lname,plinkName,Nname,fname,outfiles);
-  fprintf(flog,"Setup: seed=%d method=%d\n",seed,method);
+  fprintf(flog,"Input: -likes %s -plink %s -Nname %s -fname %s -out %s -whichPops %s\n",lname,plinkName,Nname,fname,outfiles,pops);
+  fprintf(flog,"Setup: -seed %d -method %d\n",seed,method);
   fprintf(flog,"Ploidy of %i has been chosen\n\n",ploidy);
   
   if(method==0){
@@ -1558,7 +1568,7 @@ void handler(int s) {
   } else{
     fprintf(flog,"The adjusted method has been chosen\n");
   }
-  fprintf(flog,"Convergence: maxIter=%d tol=%.8f\n",maxIter,tol);
+  fprintf(flog,"Convergence: -maxIter %d -tol %.8f\n",maxIter,tol);
   fprintf(flog,"The following number of bootstraps have been chosen: %i\n",nBoot);
   if(Qconv>0){
     fprintf(flog,"Convergence via difference in Q values chosen, threshold of: %f\n",Qtol);    
@@ -1577,7 +1587,9 @@ void handler(int s) {
       if(includedPops.count(popString)>0){
 	fprintf(stderr,"Same population selected twice with -whichPops, only each population once!\n");
 	fprintf(flog,"Same population selected twice with -whichPops, only each population once!\n");
+	fprintf(stderr,"\n");
 	info();
+	fprintf(stderr,"\n");
       }
       includedPops[popString] = 1;
       temp = strtok(NULL,",");
@@ -1599,7 +1611,9 @@ void handler(int s) {
     if(ploidy==1){
       fprintf(stderr,"Haploid analysis does not work with plink files!\n");
       fprintf(flog,"Haploid analysis does not work with plink files!\n");
+      fprintf(stderr,"\n");
       info();
+      fprintf(stderr,"\n");
     }
     overlap = findOverlapV3(NULL, plinkName, fname,flog,includedPops,pops,maf);
     d=readPlinkToBeagle(plinkName, overlap);
@@ -1621,15 +1635,19 @@ void handler(int s) {
     nPop = ref.popsToKeep.size();
     // so checks that whichPops has same pops as ref, if whichPops given
   } else  if(includedPops.size()!=ref.popsToKeep.size()){
+    fprintf(stderr,"\n");
     fprintf(stderr,"Some populations given are not in the ref panel\n");
     info();
+    fprintf(stderr,"\n");
   }
 
   if(nPop<2){
+    fprintf(stderr,"\n");
     fprintf(stderr,"nPop has to be at least 2, nPop=%i\n",nPop);
     fprintf(flog,"nPop has to be at least 2, nPop=%i\n",nPop);
     info();
-  }
+    
+  }fprintf(stderr,"\n");
   
   fprintf(stderr,"\n");
   fprintf(flog,"\n");
