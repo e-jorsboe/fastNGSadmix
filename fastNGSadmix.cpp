@@ -1397,13 +1397,13 @@ void info(){
 
 
 // for handling Ctrl + C
-int VERBOSE =1;
-void handler(int s) {
-  if(VERBOSE)
-    fprintf(stderr,"Caught SIGNAL: %d will try to exit nicely (no more threads are created, we will wait for the current threads to finish)\n",s);
-  VERBOSE=0;
-  SIG_COND=0;
-}
+//int VERBOSE =1;
+//void handler(int s) {
+//  if(VERBOSE)
+//    fprintf(stderr,"Caught SIGNAL: %d will try to exit nicely (no more threads are created, we will wait for the current threads to finish)\n",s);
+//  VERBOSE=0;
+// SIG_COND=0;
+//}
 
 ////////////////////////// it begins 
  int main(int argc, char **argv){ 
@@ -1411,13 +1411,16 @@ void handler(int s) {
     info();
     return 0;
   }
+
+  //commented this 11-10-2018 as I just want program to exit when Ctrl+C
+  //
   //below for catching ctrl+c, and dumping files
-  struct sigaction sa;
-  sigemptyset (&sa.sa_mask);
-  sa.sa_flags = 0;
-  sa.sa_handler = handler;
-  sigaction(SIGPIPE, &sa, 0);
-  sigaction(SIGINT, &sa, 0);  
+  //struct sigaction sa;
+  //sigemptyset (&sa.sa_mask);
+  //sa.sa_flags = 0;
+  //sa.sa_handler = handler;
+  //sigaction(SIGPIPE, &sa, 0);
+  //sigaction(SIGINT, &sa, 0);  
 
   //initial values
   int maxIter = 2000;
