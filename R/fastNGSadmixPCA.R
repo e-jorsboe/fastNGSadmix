@@ -228,13 +228,20 @@ filterSites<-function(pl,likes=NULL,plinkFile=NULL,refpops,out,ref){
 
     ## overlapping sites with ref genos
     rownames(GL.raw2) <- GL.raw2[,1]
+
+    ## checks that there are overlapping sites between ref and input
+    overlap<-intersect(GL.raw2[,1],paste(pl$map[,1],pl$map[,4],sep="_"))        
+    if(length(overlap)==0){
+        print("No overlap between input and ref!")
+        stop()
+    }
    
     ind <- pl$fam[ pl$fam[,1]%in%refpops,1]
     table(ind)   
     
     out1<-dirname(out)
     ref1<-basename(ref)
-
+    
     ## calculating covariance matrix for reference data
     covarFilename<-paste0(out1,"/",ref1,paste0(refpops,collapse=""),".Rdata")
     if(!file.exists(covarFilename)){       
@@ -277,10 +284,10 @@ filterSites<-function(pl,likes=NULL,plinkFile=NULL,refpops,out,ref){
         }
     } else{
         load(paste0(covarFilename))
-    }   
+    }     
     
-    GL.raw2<-GL.raw2[ GL.raw2[,1]%in%paste(pl$map[,1],pl$map[,4],sep="_"),]
-    bim2<-pl$map[ paste(pl$map$chromosome,pl$map$position,sep="_")%in%GL.raw2[,1],]
+    GL.raw2<-GL.raw2[ GL.raw2[,1]%in%overlap,]
+    bim2<-pl$map[ paste(pl$map$chromosome,pl$map$position,sep="_")%in%overlap,]
     genoFilter<-pl$genotypes[ ,colnames(pl$genotypes)%in%bim2[,2]]
 
     ## makes sure beagle or plinkFile input file ordered as reference genotypes
@@ -289,14 +296,9 @@ filterSites<-function(pl,likes=NULL,plinkFile=NULL,refpops,out,ref){
     ## if alleles coded as 0,1,2,3 instead of A,C,G,T
     if(any(c(0,1,2,3)%in%GL.raw2[,2]) | any(c(0,1,2,3)%in%GL.raw2[,3])){
         GL.raw2[,2]<-sapply(GL.raw2[,2], function(x) ifelse(x==0,"A",ifelse(x==1,"C",ifelse(x==2,"G",ifelse(x==3,"T",x)))))
-        GL.raw2[,3]<-sapply(GL.raw2[,3], function(x) ifelse(x==0,"A",ifelse(x==1,"C",ifelse(x==2,"G",ifelse(x==3,"T",x)))))
-        
+        GL.raw2[,3]<-sapply(GL.raw2[,3], function(x) ifelse(x==0,"A",ifelse(x==1,"C",ifelse(x==2,"G",ifelse(x==3,"T",x)))))        
     }
-    
-    print("The overlap between input and genos is:")
-    print(ncol(genoFilter))
-    print("")
-    
+     
     ## those were alleles agree should be flipped like for refPanel, so all genotypes point in same direction
     flip<-GL.raw2[,2]==bim2[,6] & GL.raw2[,3]==bim2[,5]
     genoFilter<-as(genoFilter[ pl$fam[  pl$fam[,1]%in%refpops,2],],"numeric")
