@@ -86,7 +86,8 @@ args<-list(likes=NULL,
            ngsTools="0",
            onlyPrior="0",
            overlapRef="1",
-           doPlots="1"
+           doPlots="1",
+           withChr="0"
 )
 ## if no argument aree given prints the need arguments and the optional ones with default
 des<-list(likes="input GL in beagle format",
@@ -101,7 +102,8 @@ des<-list(likes="input GL in beagle format",
           ngsTools="Use ngsTools' (Fumagalli et al., 2013) method where genotypes between individuals are assumed to be independent only give the data, set 1 or 0 (default)",
           onlyPrior="Run analyses with uniform genotype likelihoods, meaning that only the prior is used for inferring the covariance matrix, set 1 or 0 (default)",
           overlapRef="Bases covariance matrix for ref genos on only overlapping markers with input, set 1 or 0 (default)",
-          doPlots="Option for if admixture plot and PCA plot should be generated or just covararinace matrix, eigenvectors and eigenvalues, set 1 (default) or 0:"
+          doPlots="Option for if admixture plot and PCA plot should be generated or just covararinace matrix, eigenvectors and eigenvalues, set 1 (default) or 0:",
+          withChr="If input beagle file has input starting with the string 'chr', then overlap will with plink file will be based on this, set 1 or 0 (default)"
           
 )
 
@@ -128,6 +130,10 @@ if(!require(snpStats)){
 ## for reading plink files using snpStats
 pl<-snpStats::read.plink(ref)
 
+if(withChr=="1"){
+    pl$map$chromosome<-paste0("chr",pl$map$chromosome)
+}
+
 admix<-read.table(qopt,h=T,as.is=T)
 ## refpops are analyzed pops for admixture estimation
 refpops<-colnames(admix)
@@ -148,7 +154,7 @@ if(!all(k<-refpops%in%unique(pl$fam[,1]))){
     stop()
 }
 
-if(!all(c(saveCovar,ngsTools,onlyPrior,overlapRef,doPlots)%in%c("0","1"))){
+if(!all(c(saveCovar,ngsTools,onlyPrior,overlapRef,doPlots,withChr)%in%c("0","1"))){
     cat("saveCovar, ngsTools, onlyPrior, overlapRef or doPlots arguments must be 0 or 1\n")    
     stop()        
 }
@@ -315,10 +321,8 @@ filterSites<-function(pl,likes=NULL,plinkFile=NULL,refpops,out,ref){
     return(list(genoFilter=genoFilter,GL.raw2=GL.raw2,flip=flip,popFreqs=popFreqs,X=X,ind=ind))
 
 }
-
     
 estimateAdmixPCA<-function(admix,refpops,out,genoFilter,flip,GL.raw2,popFreqs,X,ind){
-    
     
     ## again because some freqs might be zero
     my2 <- rowMeans(genoFilter,na.rm=T)
@@ -380,9 +384,6 @@ estimateAdmixPCA<-function(admix,refpops,out,genoFilter,flip,GL.raw2,popFreqs,X,
     return(list(covar = X_norm,indi=ind))
     
 }
-
-
-
 
 PCAplotV2 = function(cova,ind,admix,out,PCs,onlyTables=F) {
     ## eigen decomposition of covariance matrix for PCA
