@@ -210,15 +210,16 @@ generateBarplot<-function(admix,sorting,out){
 filterSites<-function(pl,likes=NULL,plinkFile=NULL,refpops,out,ref){
     ## if plink files reads and convert to beagle file
     if(plinkFile!=""){
-        plInput<-plinkV2(paste(plinkFile,sep=""))
-        GL.raw<-cbind(paste(plInput$bim$V1,plInput$bim$V4,sep="_"),plInput$bim$V6,plInput$bim$V5,0,0,0)
-        GL.raw[ which(plInput$geno[1,]==2),4]<-1
-        GL.raw[ which(plInput$geno[1,]==1),5]<-1
-        GL.raw[ which(plInput$geno[1,]==0),6]<-1
-        GL.raw<-GL.raw[ !is.na(plInput$geno[1,]),]
+
+        plInput<-snpStats::read.plink(plinkFile)        
+        GL.raw<-cbind(paste(plInput$map$chromosome,plInput$map$position,sep="_"),plInput$map$allele.2,plInput$map$allele.1,0,0,0)
+        GL.raw[ which(plInput$geno[1,]==3),4]<-1
+        GL.raw[ which(plInput$geno[1,]==2),5]<-1
+        GL.raw[ which(plInput$geno[1,]==1),6]<-1
+        GL.raw<-GL.raw[ which(!is.na(plInput$geno[1,])),]
         GL.raw2<-as.data.frame(GL.raw,stringsAsFactors=F)
         colnames(GL.raw2)<-c("marker", "allele1", "allele2", "Ind0", "Ind0.1", "Ind0.2")
-        
+                
     } else{
         GL.raw2 <- read.table(paste(likes,sep=""),as.is=T,h=T,colC=c("character","integer","numeric")[c(1,1,1,3,3,3)])
     }
