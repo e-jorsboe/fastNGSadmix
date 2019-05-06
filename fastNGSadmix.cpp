@@ -1081,6 +1081,7 @@ int emAccelUnadjustedV2(const std::vector<double> &genos, const std::vector<doub
 
 
 // based on squarem1, from SQUAREM R package, by RAVI VARADHAN and CHRISTOPHE ROLAND Scandinavian Journal of Statistics, Vol. 35: 335–353, 2008
+// using method 3 for the step length (S3) in the aforementioned paper
 int emAccelV3(const std::vector<double> &genos, const std::vector<double> &nInd, int nPop, std::vector< std::vector<double> > &F, std::vector<double> &Q, std::vector< std::vector<double> > &F_new, std::vector<double> &Q_new, std::vector< std::vector<double> > &F_org, int nit, int boot, int Qconv, double Qtol, double tol, int nSites, int ploidy){
 
   double stepMin = 1;
