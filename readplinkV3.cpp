@@ -129,19 +129,18 @@ famFile readFamFile(const char* fname, int lines) {
      exit(0);
    }
 
-   
    famFile fam;
    fam.individuals = lines;
    fam.sex = new int[lines];
    fam.phenotype = new double[lines];
    int famIndex=0;
 
-   while(fgets(buffer,100, pFile) != NULL){
-     
+   while(fgets(buffer,sizeof(buffer), pFile) != NULL){
+
      char* familyID = strtok(buffer,delims);
      std::string familyIDstring(familyID, strlen(familyID));
      fam.familyID.push_back(familyIDstring);
-       
+     
      char* individualID = strtok(NULL,delims);
      std::string individualIDstring(individualID, strlen(individualID));
      fam.individualID.push_back(individualIDstring);
@@ -153,11 +152,11 @@ famFile readFamFile(const char* fname, int lines) {
      char* maternalID = strtok(NULL,delims);
      std::string maternalIDstring(maternalID, strlen(maternalID));
      fam.maternalID.push_back(maternalIDstring);
-     
+   
      fam.sex[famIndex] = atoi(strtok(NULL,delims));
      fam.phenotype[famIndex] = atof(strtok(NULL,delims));
      famIndex++;
-				    
+   
    } 
 
    
@@ -168,7 +167,6 @@ famFile readFamFile(const char* fname, int lines) {
 
 // read bim file with chr_pos ids
 bimFile readBimFile(const char* fname,int lines) {
-
   
   FILE* pFile;
   char buffer [10000];
@@ -191,7 +189,7 @@ bimFile readBimFile(const char* fname,int lines) {
   // chr_pos id here
 
   int bimIndex=0;
-  while(fgets(buffer,100, pFile) != NULL){
+  while(fgets(buffer,sizeof(buffer), pFile) != NULL){
 
     char* chrChar = strtok(buffer,delims);
     bim.chr[bimIndex] = atoi(chrChar);
