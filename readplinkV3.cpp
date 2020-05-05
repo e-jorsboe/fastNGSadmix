@@ -47,7 +47,6 @@ unsigned char **readbed(const char* file, int nrow,int ncol) {
   const unsigned char recode[4] = {'\x01', '\x00', '\x02', '\x03'};
   const unsigned char mask = '\x03';
 
-
   FILE *in = fopen(file, "r");
   if (!in){
     fprintf(stderr,"Couldn't open input file: %s\n", file);
@@ -159,9 +158,8 @@ famFile readFamFile(const char* fname, int lines) {
    
    } 
 
-   
-   fclose (pFile);
-   
+   //close file and return fam file
+   fclose (pFile);   
    return(fam);
 }
 
