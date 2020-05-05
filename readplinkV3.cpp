@@ -217,8 +217,8 @@ bimFile readBimFile(const char* fname,int lines) {
     bimIndex++;
     
   }
-  fclose (pFile);
-  
+  //closing file and returning bim file
+  fclose (pFile);  
   return(bim);
 }
  
