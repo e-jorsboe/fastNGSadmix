@@ -224,7 +224,7 @@ bimFile readBimFile(const char* fname,int lines) {
  
  
  
-
+//counts line of file
 int nlines(const char *fname){
   FILE *in =NULL;
   if(!((in=fopen(fname,"r")))){
