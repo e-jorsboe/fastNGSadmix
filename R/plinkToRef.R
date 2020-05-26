@@ -1,3 +1,12 @@
+##  Copyright (C) 2020 Emil Jorsboe - emil.jorsboe@bio.ku.dk
+##                     Kristian Hanghoj
+##                     Anders Albrechtsen
+##
+##  fastNGSadmix is free software: you can redistribute it and/or modify
+##  it under the terms of the GNU General Public License as published by
+##  the Free Software Foundation, either version 3 of the License, or
+##  (at your option) any later version. For more see LICENSE file.
+
 args<-commandArgs(trailingOnly = T)
 
 plinkFile<-unlist(args[1])
