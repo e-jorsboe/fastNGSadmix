@@ -584,22 +584,32 @@ refPanel readRefPanel(const char* fname, bgl b, const std::map <std::string,int>
   // for keeping track of which index in new ref with
   int refIndex = 0;
   int refSite = 0;
+
+  //keep track of how many columns are being read - should be the same as are in the header
+  int nColsRead = 0;
+  int line = 0;
   
   while(gzgets(fp1,buf,LENS)!=NULL){
 
     // looking at id value chr_pos for detecting overlap
     char* id = strtok(buf,delims);
+    nColsRead++;
     std::string stringID(id,strlen(id));
     
     int refChr = atoi(strtok(NULL,delims));
+    nColsRead++;
     int refPos = atoi(strtok(NULL,delims));
+    nColsRead++;
     
     char* name = strtok(NULL,delims);
+    nColsRead++;
     std::string stringName(name,strlen(name));
 
     // ref has A,C,G,T alleles
     char A0 = intToChar(strtok(NULL,delims)[0]);
+    nColsRead++;
     char A1 = intToChar(strtok(NULL,delims)[0]);
+    nColsRead++;
 
     // sorting also with alleles
     if( tolower(A0) < tolower(A1) ){
@@ -607,6 +617,7 @@ refPanel readRefPanel(const char* fname, bgl b, const std::map <std::string,int>
     } else{
       stringID = stringID + "_" + A1 + "_" + A0;
     }
+
     
     // check if site is in overlap with beagle file
     // otherwise continues to next site in ref
@@ -636,9 +647,11 @@ refPanel readRefPanel(const char* fname, bgl b, const std::map <std::string,int>
 	  // new col has to be - 1 for right index
 	  //	  ref.freqs[refIndex][ref.colsToKeep[i]-1] = 1 - atof(strtok(NULL,delims));
 	  ref.freqs.at(ref.pops*overlapIndex+(ref.colsToKeep[i]-1)) = 1 - atof(strtok(NULL,delims));
+	  nColsRead++;
 	} else{
 	  //	  ref.freqs[refIndex][ref.colsToKeep[i]-1] = atof(strtok(NULL,delims));
 	  ref.freqs.at(ref.pops*overlapIndex+(ref.colsToKeep[i]-1)) = atof(strtok(NULL,delims));
+	  nColsRead++;
 	}
 	if(getFreq(ref.freqs,ref.pops,overlapIndex,ref.colsToKeep[i]-1)<0){
 	  fprintf(stderr,"Frequencies must be positive\n");
@@ -648,11 +661,25 @@ refPanel readRefPanel(const char* fname, bgl b, const std::map <std::string,int>
       } else{
 	// it has to skip cols that are not to be read in and move to next column which will be checked
 	strtok(NULL,delims);
+	nColsRead++;
       }
       
       }
       refIndex++; 
+    } else{
+      while(strtok(NULL,delims)!=NULL){
+	nColsRead++;
+      }
     }
+
+    if(nColsRead!=ncols){
+      // it reads header so refSite actually refers to which sites and refSite + 1 line of file
+      fprintf(stderr,"Line of site %i (1-indexed) (row %i in refPanel_* file) is ill formated (probably does not have right number of columns)\n",refSite,refSite+1);
+      fprintf(stderr,"Line of site %i (1-indexed) has %i cols should have %i cols\n",refSite,nColsRead,ncols);
+      exit(0);
+    }
+
+    nColsRead = 0;
     refSite++;
     // only here if site was included in new ref
     
