@@ -24,7 +24,6 @@
 
 */
 
-
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -39,7 +38,7 @@
 #include <sys/stat.h>
 #include <map>
 #include <iostream>
-// stringApocalypse
+// stringpocalypse
 #include <string>
 #include "readplinkV3.h"
 
