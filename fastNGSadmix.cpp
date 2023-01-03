@@ -38,7 +38,7 @@
 #include <sys/stat.h>
 #include <map>
 #include <iostream>
-// stringpocalypse
+// stringpocalypse - still the best!
 #include <string>
 #include "readplinkV3.h"
 
