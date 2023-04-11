@@ -22,9 +22,10 @@ if(grepl("~",qoptFile)){
   print("Migt not work with '~' in path to .qopt file")
 }
 
+pdf(NULL)
 ccol <- c("darkgreen","darkorange","goldenrod2","#A6761D","darkred","lightgreen","darkblue","lightblue")
 grDevices::palette(ccol)
-gar<-grDevices::dev.off()
+if(dev.cur() > 1) gar<-grDevices::dev.off()
 
 admix<-read.table(qoptFile,h=T,as.is=T)
 ## refpops are analyzed pops for admixture estimation
@@ -48,7 +49,7 @@ generateBarplot<-function(admix,out){
         segments(b1-0.2,m[2,],b1+0.2,m[2,])
         par(xpd=T)
         legend("topright",inset=c(0.0,-0.2),legend=cols$pop,fill=cols$col,cex=1.5)
-        garbage<-dev.off()
+        if(dev.cur() > 1) garbage<-grDevices::dev.off()
     } else{
         
         bitmap(paste(out,"_admixBarplot.png",sep=""),res=300)
@@ -56,8 +57,7 @@ generateBarplot<-function(admix,out){
         b1<-barplot(as.numeric(admix[1,]),ylab="admixture proportion",col=cols$col,ylim=c(0,1.1))
         par(xpd=T)
         legend("topright",inset=c(0.0,-0.2),legend=cols$pop,fill=cols$col,cex=1.5)
-        
-        garbage<-dev.off()
+        if(dev.cur() > 1) garbage<-grDevices::dev.off()
     }
 }
 

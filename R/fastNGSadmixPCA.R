@@ -168,9 +168,10 @@ if(!all(c(saveCovar,ngsTools,onlyPrior,overlapRef,doPlots,withChr)%in%c("0","1")
     stop()        
 }
 
+pdf(NULL)
 ccol <- c("darkgreen","darkorange","goldenrod2","#A6761D","darkred","lightgreen","darkblue","lightblue")
 grDevices::palette(ccol)
-gar<-grDevices::dev.off()
+if(dev.cur() > 1) gar<-grDevices::dev.off()
 
 ## used for calculating the covariance entries between input data and ref indis without normalizing
 glfunc <- function(x,G_mat,my2,pre_norm,genoFilter2) {
@@ -203,7 +204,7 @@ generateBarplot<-function(admix,sorting,out){
         segments(b1-0.2,m[2,],b1+0.2,m[2,])
         par(xpd=T)
         legend("topright",inset=c(0.0,-0.2),legend=cols[ cols$pop%in%colnames(admix),"pop"],fill=cols[ cols$pop%in%colnames(admix),"col"],cex=1.5)
-        garbage<-dev.off()
+        if(dev.cur() > 1) garbage<-grDevices::dev.off()
     } else{
         
         bitmap(paste(out,"_admixBarplot.png",sep=""),res=300)
@@ -211,8 +212,7 @@ generateBarplot<-function(admix,sorting,out){
         b1<-barplot(as.numeric(admix[1,]),ylab="admixture proportion",col=cols[ cols$pop%in%colnames(admix),"col"],ylim=c(0,1.1))
         par(xpd=T)
         legend("topright",inset=c(0.0,-0.2),legend=cols[ cols$pop%in%colnames(admix),"pop"],fill=cols[ cols$pop%in%colnames(admix),"col"],cex=1.5)
-        
-        garbage<-dev.off()
+        if(dev.cur() > 1) garbage<-grDevices::dev.off()
     }
 }
 
@@ -421,7 +421,7 @@ PCAplotV2 = function(cova,ind,admix,out,PCs,onlyTables=F) {
     print(paste(a$PC1[nrow(a)],a$PC2[nrow(a)]))
     par(xpd=TRUE)
     legend("topright",inset=c(-0.3,0),legend=unique(a$pop[1:(nrow(a)-1)]),fill=unique(pcaColours))
-    garbage<-dev.off()
+    if(dev.cur() > 1) garbage<-grDevices::dev.off()
 }
 
 fL<-filterSites(pl,likes=likes,plinkFile=plinkFile,refpops=refpops,out=out,ref=ref)

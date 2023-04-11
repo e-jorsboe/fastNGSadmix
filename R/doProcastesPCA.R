@@ -94,10 +94,11 @@ res <- t(sapply(pcs,pro))
 
 ylim<-range(c(res[,2],m0[,2]))
 
+pdf(NULL)
 ## same colours as PCA
 ccol <- c("darkgreen","darkorange","goldenrod2","#A6761D","darkred","lightgreen","darkblue","lightblue")
 grDevices::palette(ccol)
-gar<-grDevices::dev.off()
+if(dev.cur() > 1) gar<-grDevices::dev.off()
 
 ## pca coordinates of ref individuals with pop label
 r1<-cbind(fam$V1,fam$V2,m0)
@@ -116,10 +117,8 @@ pcaColours<-sapply(fam$V1, function(x) cols[ cols$pop==x,"col"])
 
 plot(m0,col=pcaColours,lwd=2,ylim=ylim,ylab="PC2",xlab="PC1",main=paste0("procrustes PCA with ",groupName))
 points(res,pch=4)
-
 legend("bottomright",cex=1,pch=c(rep(15,length(unique(fam$V1))),4),col=c(unique(pcaColours),"black"),legend=c(paste0(unique(fam$V1)),groupName))
-
-dev.off()
+if(dev.cur() > 1) garbage<-grDevices::dev.off()
 if(!createdError){
     system("rm -r procustesPCs")
 }
