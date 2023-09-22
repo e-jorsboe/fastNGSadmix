@@ -42,7 +42,6 @@
 #include <string>
 #include "readplinkV3.h"
 
-
 //this is the max number of bytes perline
 #define LENS 100000
 //if we catch signal then quit program nicely
