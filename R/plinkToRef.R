@@ -57,7 +57,8 @@ l<-list()
 for(pop in unique(pl$fam[,1])){
     indis<-pl$fam[ pl$fam[,1]%in%pop,2]
     y<-as(pl$genotypes[indis,],"numeric")
-    if(class(y)=="numeric"){
+    ## in previous versions of R (before 4.0.0) matrices only had class "matrix", but since 4.0.0, they have class "matrix" "array" - I am trying to incorporate this - 15th Jan 2024
+    if(is.vector(y)){
         ## calculates freq from values without NAs
         l[[pop]]<-1-sum(y,na.rm=T)/(sum(!is.na(y))*2)
     } else{
