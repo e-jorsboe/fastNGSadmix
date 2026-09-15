@@ -1,7 +1,7 @@
 /*
 
   Copyright (C) 2020 Emil Jorsboe - emil.jorsboe@bio.ku.dk
-                     Kristian Hanghoj 
+                     Kristian Hanghoj
                      Anders Albrechtsen
 
   fastNGSadmix is free software: you can redistribute it and/or modify
@@ -29,6 +29,7 @@
 #include <cstring>
 #include <ctime>
 #include <cmath>
+#include <cctype>
 #include <limits>
 #include <zlib.h>
 #include <vector>
@@ -60,8 +61,8 @@ int validDouble(std::string someString){
     char s = someString[i];
     if(s =='.'){
       if(hasPoint){
-	isNumber = 0;
-	break;
+        isNumber = 0;
+        break;
       }
       hasPoint = 1;
       isNumber = 1;
@@ -74,7 +75,7 @@ int validDouble(std::string someString){
     }
   }
   return(isNumber);
-  
+
 }
 
 
@@ -123,11 +124,11 @@ double calcThres(std::vector<double>  &d1, std::vector<double>  &d2, int x){
   return diff;
 }
 
- 
+
 
 // function for keeping sure Q values do not become
 // 0.0 as then division by 0 might occur, errTol is limit
-void map2domainQ(std::vector<double> &Q, int nPop){  
+void map2domainQ(std::vector<double> &Q, int nPop){
   double sum=0;
   for(int k=0;k<nPop;k++){
     if(Q[k]<errTol){
@@ -149,10 +150,10 @@ void map2domainF(std::vector< std::vector<double> > &F, int nSites, int nPop){
   for(int s=0;s<nSites;s++)
     for(int k=0;k<nPop;k++){
       if(F[s][k]<errTol){
-	F[s][k] = errTol;
+        F[s][k] = errTol;
       }
       if(F[s][k]>1-errTol){
-	F[s][k] = 1-errTol;
+        F[s][k] = 1-errTol;
       }
     }
 }
@@ -163,7 +164,7 @@ void map2domainF(std::vector< std::vector<double> > &F, int nSites, int nPop){
 int fexists(const char* str){
   struct stat buffer ;
   /// @return Function returns 1 if file exists.
-  return (stat(str, &buffer )==0 ); 
+  return (stat(str, &buffer )==0 );
 }
 
 std::vector<std::string> dumpedFiles;
@@ -189,9 +190,9 @@ FILE *openFile(const char* a,const char* b){
     fprintf(stderr,"File: %s cannot be created specify valid path\n",c.c_str());
     fflush(stderr);
     exit(0);
-  } 
-  
-  
+  }
+
+
   return fp;
 }
 
@@ -204,14 +205,14 @@ gzFile openFileGz(const char* a,const char* b){
   std::string c2(b, strlen(b));
 
   std::string c = c1 + c2;
-  
+
   fprintf(stderr,"\t-> Dumping file: %s\n",c.c_str());
   if(0&&fexists(c.c_str())){
     fprintf(stderr,"File: %s exists will exist\n",c.c_str());
     fflush(stderr);
     exit(0);
   }
-  
+
   dumpedFiles.push_back(c);
   gzFile fp = gzopen(c.c_str(),"w");
 
@@ -244,7 +245,8 @@ double getFreq(const std::vector<double> &freq, int pops, int row, int col){
 
 //some struct with all the data from the beagle file
 typedef struct{
-  std::vector<double> genos;  
+  std::vector<double> genos;
+  std::vector<std::string> sampleNames;
   std::vector<char> major;
   std::vector<char> minor;
   // for snp ids, chr_pos
@@ -252,9 +254,9 @@ typedef struct{
   int nSites;
   int nInd;
   // map of ids in beagle file for finding overlap with ref
-  // id is like this: chr_pos 
+  // id is like this: chr_pos
   std::map <std::string,int> idMap;
-  
+
 }bgl;
 
 
@@ -278,9 +280,9 @@ typedef struct{
   // value is new column (in ref for analysis) number + 1 (cause has to be above 0)
   std::map <int,int> colsToKeep;
   std::map <std::string,int> popsToKeep;
-  
+
 }refPanel;
- 
+
 
 
 
@@ -303,13 +305,13 @@ char intToChar(char intLike){
       exit(0);
     }
   }
-  
+
 }
 
 
 /*
   Returns the bgl struct containing all data from a beagle file.
-  
+
   It find the nsamples from counting the header
   It finds the number of sites by queing every line in a std::vector
   After the file has been read intotal it reloops over the lines in the vector and parses data
@@ -330,19 +332,25 @@ bgl readBeagle(const char* fname, const std::map <std::string,int> &overlap) {
   strtok(buf,delims);
   int ncols=1;
   // reading first line in order to see nCol
-  while(strtok(NULL,delims)){
+  char* headerValue;
+  while((headerValue=strtok(NULL,delims))){
     ncols++;
+    if(ncols>=4 && (ncols-4)%3==0){
+      // Beagle repeats a label for each genotype triplet. Use the requested
+      // stable 1-based individual column number as the result identifier.
+      ret.sampleNames.push_back(std::to_string(ret.sampleNames.size()+1));
+    }
   }
   if(0!=(ncols-3) %3 ){
     fprintf(stderr,"ncols=%d\n",ncols);
     exit(0);
   }
 
-  if(ncols > 6){
-    fprintf(stderr,"Only one individual in beagle file, looks like there are=%d\n",(ncols-3) / 3);
+  ret.nInd = (ncols-3)/3;
+  if(ret.nInd<1 || ret.sampleNames.size()!=ret.nInd){
+    fprintf(stderr,"Malformed Beagle header: expected one sample name for every three genotype columns\n");
     exit(0);
   }
-  ret.nInd = (ncols-3)/3;
   ret.nSites = overlap.size();
 
   int refIndex = 0;
@@ -354,17 +362,17 @@ bgl readBeagle(const char* fname, const std::map <std::string,int> &overlap) {
   ret.id.assign(ret.nSites,dummyID);
   ret.major.assign(ret.nSites,dummyChar);
   ret.minor.assign(ret.nSites,dummyChar);
-  ret.genos.assign(ret.nSites*3,0);
-    
+  ret.genos.assign(ret.nSites*ret.nInd*3,0);
+
   while(gzgets(fp,buf,LENS)!=NULL){
 
     // puts id of all sites in map for fast lookup
     char* bglID = strtok(buf,delims);
     std::string bglIDstring(bglID, strlen(bglID));
-    // because allele might be coded 0,1,2,3    
+    // because allele might be coded 0,1,2,3
     char A0 = intToChar(strtok(NULL,delims)[0]);
     char A1 = intToChar(strtok(NULL,delims)[0]);
-    
+
     if( tolower(A0) < tolower(A1) ){
       bglIDstring = bglIDstring + "_" + A0 + "_" + A1;
     } else{
@@ -372,40 +380,41 @@ bgl readBeagle(const char* fname, const std::map <std::string,int> &overlap) {
     }
     // this keeps track of which position in beagle file a site is (+1 to be able to have .count() return TRUE)
     ret.idMap[bglIDstring] = refIndex+1;
-    
-    //then loop over the vector and parsing every line      
+
+    //then loop over the vector and parsing every line
     if(overlap.count(bglIDstring)>0){
-      
+
       ret.id.at(refIndex)=bglIDstring;
       ret.major.at(refIndex)=A0;
       ret.minor.at(refIndex)=A1;
-      double tmpS = 0.0;     
+      double tmpS = 0.0;
       for(int i=0;i<ret.nInd*3;i++){
-	double gl = atof(strtok(NULL,delims));
-	ret.genos.at(refIndex*3+i)=gl;
-	if(gl<0){
-	  fprintf(stderr,"Likelihoods must be positive\n");
-	  fprintf(stderr,"site %d ind %d geno %d has value %f\n",bglIndex,int(i*1.0/3),i%3,getGeno(ret.genos,refIndex,i));
-	  exit(0);
-	}
-	tmpS+=gl;
-	
-	if(i==2 and !(tmpS>0)){
-	  fprintf(stderr,"The sum of likelihoods for a genotypes must be positive\n");
-	  fprintf(stderr,"individual %d site %d has sum %f\n",i,bglIndex,tmpS);
-	  exit(0);
-	}
+        if(i%3==0) tmpS=0.0;
+        double gl = atof(strtok(NULL,delims));
+        ret.genos.at(refIndex*ret.nInd*3+i)=gl;
+        if(gl<0){
+          fprintf(stderr,"Likelihoods must be positive\n");
+          fprintf(stderr,"site %d ind %d geno %d has value %f\n",bglIndex,i/3,i%3,gl);
+          exit(0);
+        }
+        tmpS+=gl;
+
+        if(i%3==2 and !(tmpS>0)){
+          fprintf(stderr,"The sum of likelihoods for a genotypes must be positive\n");
+          fprintf(stderr,"individual %d site %d has sum %f\n",i/3,bglIndex,tmpS);
+          exit(0);
+        }
       }
-      
+
       // counts which line of overlapping sites between bgl and ref panel
-      refIndex++;  
+      refIndex++;
     }
     // counts which line of beagle file
     bglIndex++;
   }
-    
+
   //clean up filepointer
-  gzclose(fp); 
+  gzclose(fp);
   return ret;
 }
 
@@ -413,14 +422,10 @@ bgl readBeagle(const char* fname, const std::map <std::string,int> &overlap) {
 bgl readPlinkToBeagle(const char* plinkName, const std::map <std::string,int> &overlap) {
 
   plink pl = readplink(plinkName);
-  if(pl.fam.individuals > 1){
-    fprintf(stderr,"More than one individual in input plink file - should only be one! \n");
-    exit(0);
-  }
   bgl b;
   b.nSites = overlap.size();
-  // can only have one individual is this program
-  b.nInd = 1; 
+  b.nInd = pl.fam.individuals;
+  b.sampleNames = pl.fam.individualID;
   int beagleIndex = 0;
 
   char dummyChar;
@@ -428,8 +433,8 @@ bgl readPlinkToBeagle(const char* plinkName, const std::map <std::string,int> &o
   b.id.assign(b.nSites,dummyID);
   b.major.assign(b.nSites,dummyChar);
   b.minor.assign(b.nSites,dummyChar);
-  b.genos.assign(b.nSites*3,0);
-  
+  b.genos.assign(b.nSites*b.nInd*3,0);
+
   for(int i=0;i<(pl.y);i++){
     // bim id has chr_pos_A0_A1 ID (A0, A1 ordered alphabetically)
     if(overlap.count(pl.bim.id[i])<1){
@@ -441,22 +446,27 @@ bgl readPlinkToBeagle(const char* plinkName, const std::map <std::string,int> &o
       fprintf(stderr,"Use plink2 with --list-duplicate-vars suppress-first ids-only - and then --exclude \n");
       exit(0);
     }
-    
-    if(pl.d[0][i]==0){
-      b.genos.at(beagleIndex*3)=0.0;
-      b.genos.at(beagleIndex*3+1)=0.0;
-      b.genos.at(beagleIndex*3+2)=1.0;
-      
-    } else if(pl.d[0][i]==1){
-      b.genos.at(beagleIndex*3)=0.0;
-      b.genos.at(beagleIndex*3+1)=1.0;
-      b.genos.at(beagleIndex*3+2)=0.0;
-    
-    } else if(pl.d[0][i]==2){
-      b.genos.at(beagleIndex*3)=1.0;
-      b.genos.at(beagleIndex*3+1)=0.0;
-      b.genos.at(beagleIndex*3+2)=0.0;
 
+    for(int ind=0;ind<b.nInd;ind++){
+      int offset = (beagleIndex*b.nInd+ind)*3;
+      if(pl.d[ind][i]==0){
+        b.genos.at(offset)=0.0;
+        b.genos.at(offset+1)=0.0;
+        b.genos.at(offset+2)=1.0;
+      } else if(pl.d[ind][i]==1){
+        b.genos.at(offset)=0.0;
+        b.genos.at(offset+1)=1.0;
+        b.genos.at(offset+2)=0.0;
+      } else if(pl.d[ind][i]==2){
+        b.genos.at(offset)=1.0;
+        b.genos.at(offset+1)=0.0;
+        b.genos.at(offset+2)=0.0;
+      } else {
+        // A missing PLINK genotype contributes equally to all genotype states.
+        b.genos.at(offset)=1.0;
+        b.genos.at(offset+1)=1.0;
+        b.genos.at(offset+2)=1.0;
+      }
     }
 
     b.major.at(beagleIndex)=pl.bim.major[i];
@@ -469,8 +479,8 @@ bgl readPlinkToBeagle(const char* plinkName, const std::map <std::string,int> &o
   }
   kill_plink(pl);
   return(b);
-  
-} 
+
+}
 
 
 void readDouble(double **d,int x,int y,const char*fname,int neg){
@@ -494,9 +504,9 @@ void readDouble(double **d,int x,int y,const char*fname,int neg){
       d[i][0] = atof(strtok(buf,delims));
     for(int j=1;j<y;j++){
       if(neg)
-	d[i][j] = -atof(strtok(NULL,delims));
+        d[i][j] = -atof(strtok(NULL,delims));
       else
-	d[i][j] = atof(strtok(NULL,delims));
+        d[i][j] = atof(strtok(NULL,delims));
     }
   }
   fclose(fp);
@@ -517,44 +527,44 @@ refPanel readRefPanel(const char* fname, bgl b, const std::map <std::string,int>
 
   int totalSites = 0;
   int ncols = 0;
-  
+
   // keeps track of which new column (index = newCol-1) has to be above 0 for lookup in map
-  int newCol = 1;  
+  int newCol = 1;
   //find number of columns
   while(gzgets(fp,buf,LENS)!=NULL){
-    if(totalSites==0){      
-      char* columnID = strtok(buf,delims);      
+    if(totalSites==0){
+      char* columnID = strtok(buf,delims);
       while(columnID!=NULL){
-	ncols++;
-	// first 6 columns not freqs and has to at most K new columns included in ref
-	if(ncols>6){
-	  // if in supplied populations or if no populations supplied include
-	  if(includedPops.count(columnID)>0 or includedPops.empty()){
-	    // prints out which populations chosen
-	    fprintf(stderr,"Chosen pop %s\n",columnID);
-	    std::string columnIDstring(columnID, strlen(columnID));
-	    // for which columns to keep
-	    ref.populations.push_back(columnIDstring);
-	    // keep track of which new column it will be
-	    ref.popsToKeep[columnIDstring] = newCol;
-	    // so that can translate from org column (where 7th column is first freq column) to new column (that is +1 here for lookup purposes)
-	    ref.colsToKeep[ncols-7] = newCol;
-	    newCol++;
-	  } 
-	}
-	columnID = strtok(NULL,delims);	
+        ncols++;
+        // first 6 columns not freqs and has to at most K new columns included in ref
+        if(ncols>6){
+          // if in supplied populations or if no populations supplied include
+          if(includedPops.count(columnID)>0 or includedPops.empty()){
+            // prints out which populations chosen
+            fprintf(stderr,"Chosen pop %s\n",columnID);
+            std::string columnIDstring(columnID, strlen(columnID));
+            // for which columns to keep
+            ref.populations.push_back(columnIDstring);
+            // keep track of which new column it will be
+            ref.popsToKeep[columnIDstring] = newCol;
+            // so that can translate from org column (where 7th column is first freq column) to new column (that is +1 here for lookup purposes)
+            ref.colsToKeep[ncols-7] = newCol;
+            newCol++;
+          }
+        }
+        columnID = strtok(NULL,delims);
       }
-      
+
     }
-    
-    
-    totalSites++;   
+
+
+    totalSites++;
   }
 
-  gzclose(fp); 
-    
+  gzclose(fp);
+
   if(ncols<7){
-    // has to have at least 7 columns 
+    // has to have at least 7 columns
     fprintf(stderr,"Too few cols, ncols=%d\n",ncols);
     exit(0);
   }
@@ -569,15 +579,15 @@ refPanel readRefPanel(const char* fname, bgl b, const std::map <std::string,int>
   ref.id.assign(ref.refSites,dummyID);
   ref.chr.assign(ref.refSites,0);
   ref.pos.assign(ref.refSites,0);
-  
+
   ref.name.assign(ref.refSites,dummyID);
   // ref has A,C,G,T alleles
   ref.A0.assign(ref.refSites,dummyChar);
   ref.A1.assign(ref.refSites,dummyChar);
-   
+
   gzFile fp1 = NULL;
   fp1=gzopen(fname,"r");
-  
+
   // for keeping track of which index in new ref with
   int refIndex = 0;
   int refSite = 0;
@@ -585,19 +595,19 @@ refPanel readRefPanel(const char* fname, bgl b, const std::map <std::string,int>
   //keep track of how many columns are being read - should be the same as are in the header
   int nColsRead = 0;
   int line = 0;
-  
+
   while(gzgets(fp1,buf,LENS)!=NULL){
 
     // looking at id value chr_pos for detecting overlap
     char* id = strtok(buf,delims);
     nColsRead++;
     std::string stringID(id,strlen(id));
-    
+
     int refChr = atoi(strtok(NULL,delims));
     nColsRead++;
     int refPos = atoi(strtok(NULL,delims));
     nColsRead++;
-    
+
     char* name = strtok(NULL,delims);
     nColsRead++;
     std::string stringName(name,strlen(name));
@@ -615,7 +625,7 @@ refPanel readRefPanel(const char* fname, bgl b, const std::map <std::string,int>
       stringID = stringID + "_" + A1 + "_" + A0;
     }
 
-    
+
     // check if site is in overlap with beagle file
     // otherwise continues to next site in ref
     if(overlap.count(stringID) > 0){
@@ -633,39 +643,39 @@ refPanel readRefPanel(const char* fname, bgl b, const std::map <std::string,int>
       // ref has A,C,G,T alleles
       ref.A0.at(overlapIndex)=A0;
       ref.A1.at(overlapIndex)=A1;
-      
+
       //    reading in ref freqs
       for(int i=0;i<(ncols-6);i++){
-	// check if org column to keep and thereby pop to keep in ref
+        // check if org column to keep and thereby pop to keep in ref
       if(ref.colsToKeep.count(i)>0){
-	// if bgl 1_1 A B GL(AA) GL(AB) GL(BB) Then ref 1 1 rs1 B A 1-f(B)
-	// minor is last allele in beagle file
-	if(ref.A0[overlapIndex]==b.minor[overlapIndex]){
-	  // new col has to be - 1 for right index
-	  //	  ref.freqs[refIndex][ref.colsToKeep[i]-1] = 1 - atof(strtok(NULL,delims));
-	  ref.freqs.at(ref.pops*overlapIndex+(ref.colsToKeep[i]-1)) = 1 - atof(strtok(NULL,delims));
-	  nColsRead++;
-	} else{
-	  //	  ref.freqs[refIndex][ref.colsToKeep[i]-1] = atof(strtok(NULL,delims));
-	  ref.freqs.at(ref.pops*overlapIndex+(ref.colsToKeep[i]-1)) = atof(strtok(NULL,delims));
-	  nColsRead++;
-	}
-	if(getFreq(ref.freqs,ref.pops,overlapIndex,ref.colsToKeep[i]-1)<0){
-	  fprintf(stderr,"Frequencies must be positive\n");
-	  fprintf(stderr,"site %d, pop %d, has value %f\n",refSite,i,getFreq(ref.freqs,ref.pops,overlapIndex,ref.colsToKeep[i]-1));
-	  exit(0);
-	}
+        // if bgl 1_1 A B GL(AA) GL(AB) GL(BB) Then ref 1 1 rs1 B A 1-f(B)
+        // minor is last allele in beagle file
+        if(ref.A0[overlapIndex]==b.minor[overlapIndex]){
+          // new col has to be - 1 for right index
+          //      ref.freqs[refIndex][ref.colsToKeep[i]-1] = 1 - atof(strtok(NULL,delims));
+          ref.freqs.at(ref.pops*overlapIndex+(ref.colsToKeep[i]-1)) = 1 - atof(strtok(NULL,delims));
+          nColsRead++;
+        } else{
+          //      ref.freqs[refIndex][ref.colsToKeep[i]-1] = atof(strtok(NULL,delims));
+          ref.freqs.at(ref.pops*overlapIndex+(ref.colsToKeep[i]-1)) = atof(strtok(NULL,delims));
+          nColsRead++;
+        }
+        if(getFreq(ref.freqs,ref.pops,overlapIndex,ref.colsToKeep[i]-1)<0){
+          fprintf(stderr,"Frequencies must be positive\n");
+          fprintf(stderr,"site %d, pop %d, has value %f\n",refSite,i,getFreq(ref.freqs,ref.pops,overlapIndex,ref.colsToKeep[i]-1));
+          exit(0);
+        }
       } else{
-	// it has to skip cols that are not to be read in and move to next column which will be checked
-	strtok(NULL,delims);
-	nColsRead++;
+        // it has to skip cols that are not to be read in and move to next column which will be checked
+        strtok(NULL,delims);
+        nColsRead++;
       }
-      
+
       }
-      refIndex++; 
+      refIndex++;
     } else{
       while(strtok(NULL,delims)!=NULL){
-	nColsRead++;
+        nColsRead++;
       }
     }
 
@@ -679,7 +689,7 @@ refPanel readRefPanel(const char* fname, bgl b, const std::map <std::string,int>
     nColsRead = 0;
     refSite++;
     // only here if site was included in new ref
-    
+
   }
 
   if(refIndex!=overlap.size()){
@@ -688,7 +698,7 @@ refPanel readRefPanel(const char* fname, bgl b, const std::map <std::string,int>
     exit(0);
   }
 
-  gzclose(fp1); 
+  gzclose(fp1);
   return ref;
 }
 
@@ -724,10 +734,10 @@ void readDoubleGZ(double **d,int nSites,int nPop,const char*fname,int neg){
     }
     for(int j=1;j<nPop;j++){
       if(neg){
-	d[i][j] = -atof(strtok(NULL,delims));
+        d[i][j] = -atof(strtok(NULL,delims));
       }
       else{
-	d[i][j] = atof(strtok(NULL,delims));
+        d[i][j] = atof(strtok(NULL,delims));
       }
     }
 
@@ -748,56 +758,56 @@ void readDouble1d(std::vector <double> &d,int nPop,const char*fname, std::map<st
   char buf[lens];
 
   d.assign(nPop,0);
-  
+
   std::vector<char*> tmp;
   // keeps track of org index of pop to keep and new index of pop to keep
   std::map<int,int> toKeep;
 
   gzgets(fp,buf,LENS);
-    
+
   // looking at id value chr_pos for detecting overlap
   char* word = strtok(buf,delims);
   std::string stringID(word,strlen(word));
   int orgCol = 0;
-  
+
   while(word!=NULL){
     std::string stringWord(word,strlen(word));
-    if(popsToKeep.count(stringWord)>0){	
+    if(popsToKeep.count(stringWord)>0){
       // creates map of <nInd index, ref index> so can map from nInd order to ref order
       // so if first element in nInd is second in ref
       // the d array with nInd values has second element equal to nInd first value
-      toKeep[orgCol] = popsToKeep[stringWord];	
+      toKeep[orgCol] = popsToKeep[stringWord];
     }
-    word = strtok(NULL,delims); 
+    word = strtok(NULL,delims);
     orgCol++;
   }
-     
-  // first goes through the first line with names of pops, finds which should be included  
+
+  // first goes through the first line with names of pops, finds which should be included
   // keeps track of which value at in nInd file, newCol has to be index+1, because has to be > 0 for lookup
 
   if(toKeep.size()!=popsToKeep.size()){
     fprintf(stderr,"nInd and ref panel do not have same size!\n");
     exit(0);
   }
-  
+
   int index = 0;
   gzgets(fp,buf,LENS);
-  word = strtok(buf,delims);        
+  word = strtok(buf,delims);
   while(word!=NULL){
     if(toKeep.count(index)>0){
       // because map index has to start at 1 for count method to work
       d[toKeep[index]-1] = atof(word);
-      
+
     }
-    word = strtok(NULL,delims);    
-    index++;    
+    word = strtok(NULL,delims);
+    index++;
   }
-  
+
   if(index!=orgCol){
     fprintf(stderr,"nInd has different number of elements between row 1 and 2\n");
     exit(0);
   }
-  
+
   gzclose(fp);
 }
 
@@ -805,23 +815,23 @@ void printDouble(const std::vector< std::vector<double> > &ret,size_t x,size_t y
   for(size_t i=0;i<x;i++){
     if(i==0){
       for(size_t j=0;j<y;j++){
-	fprintf(fp,"%s ",populations[j].c_str());
+        fprintf(fp,"%s ",populations[j].c_str());
       }
       fprintf(fp,"\n");
     }
     if(i<nConv and i == highestLike){
       for(size_t j=0;j<y;j++){
-	fprintf(fp,"%.4f ",ret[i][j]);
+        fprintf(fp,"%.4f ",ret[i][j]);
       }
       fprintf(fp,"\n");
     } else if(i>=nConv){
       for(size_t j=0;j<y;j++){
-	fprintf(fp,"%.4f ",ret[i][j]);
+        fprintf(fp,"%.4f ",ret[i][j]);
       }
       fprintf(fp,"\n");
     }
   }
-  
+
 }
 
 
@@ -831,7 +841,7 @@ void printDoubleGz(const std::vector< std::vector<double> > &ret, size_t x, size
     if(i==0){
       gzprintf(fp,"id ");
       for(size_t j=0;j<y;j++){
-	gzprintf(fp,"%s ",populations[j].c_str());
+        gzprintf(fp,"%s ",populations[j].c_str());
       }
       gzprintf(fp,"\n");
     }
@@ -860,13 +870,13 @@ double likelihood(const std::vector<double> &Q, const std::vector< std::vector<d
       double sum = getGeno(genos,j,0)*f;
       sum +=  getGeno(genos,j,1)*(1-f);
       prod_ind += log(sum);
-      
+
     } else if(ploidy==2){
       double sum = getGeno(genos,j,0)* f * f;
       sum +=  getGeno(genos,j,1)*2*f*(1-f);
       sum +=  getGeno(genos,j,2)*(1-f)*(1-f);
       prod_ind += log(sum);
-    } 
+    }
   }
   return prod_ind;
 }
@@ -880,7 +890,7 @@ void bootstrap(const std::vector<double> &genosOrg, std::vector<double> &genos, 
       genos[3*j+0] = getGeno(genosOrg,row,0);
       genos[3*j+1] = getGeno(genosOrg,row,1);
 
-    } else if(ploidy==2){        
+    } else if(ploidy==2){
       genos[3*j+0] = getGeno(genosOrg,row,0);
       genos[3*j+1] = getGeno(genosOrg,row,1);
       genos[3*j+2] = getGeno(genosOrg,row,2);
@@ -899,46 +909,46 @@ void emUnadjusted(std::vector<double> &Q, std::vector< std::vector<double> > &F,
   // makes sure neither F nor Q has 0 values
   map2domainF(F, nSites, nPop);
   map2domainQ(Q,nPop);
-  for(int k=0;k<nPop;k++){ 
+  for(int k=0;k<nPop;k++){
     sumAG[k]=0;
     sumBG[k]=0;
   }
-  for(int j=0;j<nSites;j++){   
+  for(int j=0;j<nSites;j++){
     double fpart=0;
     double fpartInv=0;
     double expGG=0;
-    for(int k=0;k<nPop;k++){ 
+    for(int k=0;k<nPop;k++){
       // admixture adjusted freq, for each pop
       fpart += F[j][k] * Q[k];
       fpartInv += (1-F[j][k]) * Q[k];
 
       if(ploidy==1){
-	double pp0=(1-fpart)*getGeno(genos,j,1);
-	double pp1=fpart*getGeno(genos,j,0);
-	double sum=pp0+pp1;
-	expGG =(pp1)/sum;
+        double pp0=(1-fpart)*getGeno(genos,j,1);
+        double pp1=fpart*getGeno(genos,j,0);
+        double sum=pp0+pp1;
+        expGG =(pp1)/sum;
       } else if(ploidy==2){
-	  
-	// pre GL (sites x 3) * (adjusted freq)
-	// for calculating H range 0-2, this is the expected genotype
-	double pp0=(1-fpart)*(1-fpart)*getGeno(genos,j,2);
-	double pp1=2*(1-fpart)*fpart*  getGeno(genos,j,1);
-	double pp2=fpart*fpart*        getGeno(genos,j,0);
-	double sum=pp0+pp1+pp2;
-	expGG =(pp1+2*pp2)/sum;
-      }    	  
-      
+
+        // pre GL (sites x 3) * (adjusted freq)
+        // for calculating H range 0-2, this is the expected genotype
+        double pp0=(1-fpart)*(1-fpart)*getGeno(genos,j,2);
+        double pp1=2*(1-fpart)*fpart*  getGeno(genos,j,1);
+        double pp2=fpart*fpart*        getGeno(genos,j,0);
+        double sum=pp0+pp1+pp2;
+        expGG =(pp1+2*pp2)/sum;
+      }
+
     }
     for(int k=0;k<nPop;k++){
-      sumAG[k] += expGG/(fpart) * (Q[k] * F[j][k]); 
+      sumAG[k] += expGG/(fpart) * (Q[k] * F[j][k]);
       sumBG[k] += (ploidy-expGG)/fpartInv * (Q[k] * (1-F[j][k]));
     }
-    
+
   }
-  for(int k=0;k<nPop;k++){        
-    Q_1[k]=(sumAG[k] + sumBG[k])/(ploidy*nSites*1.0);        
+  for(int k=0;k<nPop;k++){
+    Q_1[k]=(sumAG[k] + sumBG[k])/(ploidy*nSites*1.0);
   }
-  
+
   map2domainQ(Q_1,nPop);
 }
 
@@ -952,12 +962,12 @@ void em(std::vector<double> &Q, std::vector< std::vector<double> > &F, int nSite
   map2domainQ(Q,nPop);
   double sumA[nPop];
   double sumB[nPop];
-  for(int k=0;k<nPop;k++){ 
+  for(int k=0;k<nPop;k++){
       sumA[k]=0;
       sumB[k]=0;
   }
-  for(int j=0;j<nSites;j++){   
-    for(int k=0;k<nPop;k++){ 
+  for(int j=0;j<nSites;j++){
+    for(int k=0;k<nPop;k++){
       sumAG[k]=0;
       sumBG[k]=0;
     }
@@ -965,57 +975,57 @@ void em(std::vector<double> &Q, std::vector< std::vector<double> > &F, int nSite
     double fpartInv=0;
     double expGG=0;
     double sum=0;
-    for(int k=0;k<nPop;k++){ 
+    for(int k=0;k<nPop;k++){
       // admixture adjusted freq, for each pop
       fpart += F[j][k] * Q[k];
       fpartInv += (1-F[j][k]) * Q[k];
-          
+
       if(ploidy==1){
-	double pp0=(1-fpart)*getGeno(genos,j,1);
-	double pp1=fpart*getGeno(genos,j,0);
-	sum=pp0+pp1;
-	expGG = (pp1)/sum;
-      } else if(ploidy==2){	
-	// pre GL (sites x 3) * (adjusted freq)
-	// for calculating H range 0-2, this is the expected genotype
-	double pp0=(1-fpart)*(1-fpart)*getGeno(genos,j,2);
-	double pp1=2*(1-fpart)*fpart*  getGeno(genos,j,1);
-	double pp2=fpart*fpart*        getGeno(genos,j,0);
-	sum=pp0+pp1+pp2;
-	expGG = (pp1+2*pp2)/sum;
+        double pp0=(1-fpart)*getGeno(genos,j,1);
+        double pp1=fpart*getGeno(genos,j,0);
+        sum=pp0+pp1;
+        expGG = (pp1)/sum;
+      } else if(ploidy==2){
+        // pre GL (sites x 3) * (adjusted freq)
+        // for calculating H range 0-2, this is the expected genotype
+        double pp0=(1-fpart)*(1-fpart)*getGeno(genos,j,2);
+        double pp1=2*(1-fpart)*fpart*  getGeno(genos,j,1);
+        double pp2=fpart*fpart*        getGeno(genos,j,0);
+        sum=pp0+pp1+pp2;
+        expGG = (pp1+2*pp2)/sum;
       }
     }
 
     for(int k=0;k<nPop;k++){
-      // similar to (H/(q*f))*q, for jth marker      
+      // similar to (H/(q*f))*q, for jth marker
       sumAG[k] = (expGG) / (fpart) * (Q[k]*F[j][k]);
       sumBG[k] = (ploidy-expGG) / fpartInv * (Q[k]*(1-F[j][k]));
       sumA[k] += sumAG[k];
       sumB[k] += sumBG[k];
       sumAG[k] += nInd[k]*ploidy*F_org[j][k];
       sumBG[k] += ploidy*nInd[k]-(ploidy*nInd[k]*F_org[j][k]);
-           
+
     }
-    
+
     for(int k=0;k<nPop;k++){
       // adjust with ref panel, so we have input + ref expected number of alleles
       F_1[j][k]=sumAG[k]/(sumAG[k]+sumBG[k]);
-      
-    }      
+
+    }
   }
 
-  for(int k=0;k<nPop;k++){  
+  for(int k=0;k<nPop;k++){
     Q_1[k]=(sumA[k] + sumB[k])/(ploidy*nSites*1.0);
-    
+
   }
-  
+
   map2domainQ(Q_1,nPop);
   map2domainF(F_1,nSites,nPop);
 }
 
 
 int emAccelUnadjustedV2(const std::vector<double> &genos, const std::vector<double> &nInd, int nPop, std::vector< std::vector<double> > &F, std::vector<double> &Q, std::vector<double> &Q_new, int nit, int boot, int Qconv, double Qtol, double tol, int nSites, int ploidy){
- 
+
   double stepMin = 1;
   double stepMax0 = 1;
   static double stepMax = stepMax0;
@@ -1029,7 +1039,7 @@ int emAccelUnadjustedV2(const std::vector<double> &genos, const std::vector<doub
   static std::vector<double> Q_diff3;
   static std::vector<double> Q_tmp;
   static std::vector<double> Q_tmpDiff;
-  
+
   if(Q_em1.empty()){
     Q_em1.assign(nPop,0);
     Q_diff1.assign(nPop,0);
@@ -1047,8 +1057,8 @@ int emAccelUnadjustedV2(const std::vector<double> &genos, const std::vector<doub
   double sr2 = sumSquare1d(Q_diff1,nPop);
   // checks if convergence
   if(sqrt(sr2)<tol or (calcThres(Q,Q_em1,nPop) < Qtol and Qconv>0)){
-    //fprintf(stderr,"like is %f\n",likelihood(Q_new, F, nSites, nPop,genos));    
-    return 0;  
+    //fprintf(stderr,"like is %f\n",likelihood(Q_new, F, nSites, nPop,genos));
+    return 0;
   }
   // second EM run
   emUnadjusted(Q_em1, F, nSites, nPop, genos, Q_em2, ploidy);
@@ -1069,10 +1079,10 @@ int emAccelUnadjustedV2(const std::vector<double> &genos, const std::vector<doub
     Q_tmp[i] = 1.0;
   }
   map2domainQ(Q_new,nPop);
-  // if alpha not too close (0.01 close) to 1 
+  // if alpha not too close (0.01 close) to 1
   if (fabs(alpha - 1) > 0.01){
     // we estimate new Q and F, with our inferred Q and F via alpha
-    emUnadjusted(Q_new, F, nSites, nPop,genos,Q_tmp, ploidy);    
+    emUnadjusted(Q_new, F, nSites, nPop,genos,Q_tmp, ploidy);
     minus1d(Q_tmp,Q_new,nPop,Q_tmpDiff);
     // adopted from squarem2 from SQUAREM package
     double res = sumSquare1d(Q_tmpDiff,nPop);
@@ -1085,27 +1095,27 @@ int emAccelUnadjustedV2(const std::vector<double> &genos, const std::vector<doub
     }
     if(res > kres){
       if (alpha == stepMax){
-	stepMax = std::max(stepMax0, stepMax/2);
+        stepMax = std::max(stepMax0, stepMax/2);
       }
       alpha = 1;
-    } 
+    }
   }
-  if (alpha == stepMax){ 
+  if (alpha == stepMax){
     stepMax = mstep * stepMax;
   }
   if (stepMin < 0 & alpha == stepMin) {
     stepMin = mstep * stepMin;
   }
-  if(nit % 10 == 0){    
+  if(nit % 10 == 0){
     if(boot == 0){
       double lnew = likelihood(Q_new, F, nSites, nPop,genos, ploidy);
       if(lnew!=lnew){
-	fprintf(stderr,"likelihood is nan, probably because dividing by 0, go fix ref panel or input!\n");
-	exit(0);
-      }      
+        fprintf(stderr,"likelihood is nan, probably because dividing by 0, go fix ref panel or input!\n");
+        exit(0);
+      }
       fprintf(stderr,"iter[%d] like=%f alpha=%f ",nit,lnew,alpha);
-      for(int i=0;i<nPop;i++){	      
-	fprintf(stderr,"Q=%f, ",Q_new[i]);
+      for(int i=0;i<nPop;i++){
+        fprintf(stderr,"Q=%f, ",Q_new[i]);
       }
       fprintf(stderr,"\n");
     }
@@ -1132,7 +1142,7 @@ int emAccelV3(const std::vector<double> &genos, const std::vector<double> &nInd,
   static std::vector<double> Q_diff3;
   static std::vector<double> Q_tmp;
   static std::vector<double> Q_tmpDiff;
-  
+
   static std::vector< std::vector<double> > F_em1(nSites, std::vector<double>(nPop));
   static std::vector< std::vector<double> > F_diff1(nSites, std::vector<double>(nPop));
   static std::vector< std::vector<double> > F_em2(nSites, std::vector<double>(nPop));
@@ -1141,16 +1151,16 @@ int emAccelV3(const std::vector<double> &genos, const std::vector<double> &nInd,
   static std::vector< std::vector<double> > F_tmp(nSites, std::vector<double>(nPop));
   static std::vector< std::vector<double> > F_tmpDiff(nSites, std::vector<double>(nPop));
 
-  if(Q_em1.empty()){  
+  if(Q_em1.empty()){
     Q_em1.assign(nPop,0);
     Q_diff1.assign(nPop,0);
     Q_em2.assign(nPop,0);
-    Q_diff2.assign(nPop,0);    
-    Q_diff3.assign(nPop,0);      
-    Q_tmp.assign(nPop,0);        
+    Q_diff2.assign(nPop,0);
+    Q_diff3.assign(nPop,0);
+    Q_tmp.assign(nPop,0);
     Q_tmpDiff.assign(nPop,0);
   }
- 
+
   // first EM run
   em(Q, F, nSites, nInd, nPop,genos, F_em1, Q_em1, F_org, ploidy);
   minusFunc(F_em1,F,nSites,nPop,F_diff1);
@@ -1158,7 +1168,7 @@ int emAccelV3(const std::vector<double> &genos, const std::vector<double> &nInd,
   double sr2 = sumSquare1d(Q_diff1,nPop) + sumSquare(F_diff1,nSites,nPop);
   // checks if convergence
   if(sqrt(sr2)<tol or (calcThres(Q,Q_em1,nPop) < Qtol and Qconv>0)){
-    //fprintf(stderr,"like is %f\n",likelihood(Q_new, F_new, nSites, nPop,genos));    
+    //fprintf(stderr,"like is %f\n",likelihood(Q_new, F_new, nSites, nPop,genos));
     return 0;
   }
   // second EM run
@@ -1174,7 +1184,7 @@ int emAccelV3(const std::vector<double> &genos, const std::vector<double> &nInd,
   minusFunc(F_diff2,F_diff1,nSites,nPop,F_diff3);
   minus1d(Q_diff2,Q_diff1,nPop,Q_diff3);
   double sv2 = sumSquare1d(Q_diff3,nPop) + sumSquare(F_diff3,nSites,nPop);
-  double alpha = sqrt(sr2/sv2);  
+  double alpha = sqrt(sr2/sv2);
   // makes sure alpha does not go below 1 and above stepMax
   alpha = std::max(stepMin,std::min(stepMax,alpha));
   for(size_t i=0;i<nSites;i++){
@@ -1190,7 +1200,7 @@ int emAccelV3(const std::vector<double> &genos, const std::vector<double> &nInd,
     Q_tmp[i] = 1.0;
   }
   map2domainQ(Q_new,nPop);
-  // if alpha not too close (0.01 close) to 1 
+  // if alpha not too close (0.01 close) to 1
   if (fabs(alpha - 1) > 0.01){
     // we estimate new Q and F, with our inferred Q and F via alpha
     em(Q_new, F_new, nSites, nInd, nPop,genos,F_tmp,Q_tmp,F_org,ploidy);
@@ -1208,12 +1218,12 @@ int emAccelV3(const std::vector<double> &genos, const std::vector<double> &nInd,
     }
     if(res > kres){
       if (alpha == stepMax){
-	stepMax = std::max(stepMax0, stepMax/2);
+        stepMax = std::max(stepMax0, stepMax/2);
       }
       alpha = 1;
-    }    
+    }
   }
-  if (alpha == stepMax){ 
+  if (alpha == stepMax){
     stepMax = mstep * stepMax;
   }
   if (stepMin < 0 & alpha == stepMin) {
@@ -1223,17 +1233,17 @@ int emAccelV3(const std::vector<double> &genos, const std::vector<double> &nInd,
     if(boot == 0){
       double lnew = likelihood(Q_new, F_new, nSites, nPop,genos,ploidy);
       if(lnew!=lnew){
-	fprintf(stderr,"likelihood is nan, probably because dividing by 0, go fix ref panel or input!\n");
-	exit(0);
+        fprintf(stderr,"likelihood is nan, probably because dividing by 0, go fix ref panel or input!\n");
+        exit(0);
       }
       fprintf(stderr,"iter[%d] like=%f alpha=%f ",nit,lnew,alpha);
-      for(int i=0;i<nPop;i++){	      
-	fprintf(stderr,"Q=%f, ",Q_new[i]);
+      for(int i=0;i<nPop;i++){
+        fprintf(stderr,"Q=%f, ",Q_new[i]);
       }
       fprintf(stderr,"\n");
     }
   }
-  
+
   return 1;
 }
 
@@ -1254,24 +1264,24 @@ std::map <std::string,int> findOverlapV3(const char* lname, const char* plinkNam
     char buf1[LENS];
     while(NULL!=gzgets(fp1,buf1,LENS)){
       if(beagleIndex>0){
-	char* bglID = strtok(buf1,delims);
-	std::string bglString(bglID,strlen(bglID));
-	char A0 = intToChar(strtok(NULL,delims)[0]);
-	char A1 = intToChar(strtok(NULL,delims)[0]);
-	if( tolower(A0) < tolower(A1)){
-	  bglString=bglString + "_" + A0 + "_" + A1;
-	} else{
-	  bglString=bglString + "_" + A1 + "_" + A0;
-	}
-	if(inputSites.count(bglString)>0){
-	  fprintf(stderr,"Duplicate sites in beagle file: %s - Go fix!\n",bglString.c_str());
-	  exit(0);
-	} else{
-	  inputSites[bglString]=1;
-	}
+        char* bglID = strtok(buf1,delims);
+        std::string bglString(bglID,strlen(bglID));
+        char A0 = intToChar(strtok(NULL,delims)[0]);
+        char A1 = intToChar(strtok(NULL,delims)[0]);
+        if( tolower(A0) < tolower(A1)){
+          bglString=bglString + "_" + A0 + "_" + A1;
+        } else{
+          bglString=bglString + "_" + A1 + "_" + A0;
+        }
+        if(inputSites.count(bglString)>0){
+          fprintf(stderr,"Duplicate sites in beagle file: %s - Go fix!\n",bglString.c_str());
+          exit(0);
+        } else{
+          inputSites[bglString]=1;
+        }
       }
       beagleIndex++;
-    }    
+    }
     gzclose(fp1);
     // if plink file input
   } else{
@@ -1279,13 +1289,13 @@ std::map <std::string,int> findOverlapV3(const char* lname, const char* plinkNam
     // reads all plink sites into map, checks for duplicates!
     for(int s=0;s<(pl_tmp.y);s++){
       if(inputSites.count(pl_tmp.bim.id[s])>0){
-	fprintf(stderr,"Duplicate sites in plink file: %s - Go fix!\n",pl_tmp.bim.id[s].c_str());
-	exit(0);
+        fprintf(stderr,"Duplicate sites in plink file: %s - Go fix!\n",pl_tmp.bim.id[s].c_str());
+        exit(0);
       }
       else if(pl_tmp.d[0][s]==3){
-	continue;
+        continue;
       }
-      inputSites[pl_tmp.bim.id[s]]=1;  
+      inputSites[pl_tmp.bim.id[s]]=1;
     }
     kill_plink(pl_tmp);
   }
@@ -1309,17 +1319,17 @@ std::map <std::string,int> findOverlapV3(const char* lname, const char* plinkNam
       int whichCol=0;
       char* refPop = strtok(buf2,delims);
       while(refPop!=NULL){
-	std::string refPopString(refPop,strlen(refPop));
-	int allPops = toupper(pops[0])=='A' and toupper(pops[1])=='L' and toupper(pops[2])=='L' and pops[3]=='\0';
-	if(includedPops.count(refPopString)>0 or allPops){	  
-	  colsToRead[whichCol] = 1;
-	}
-	whichCol++;
-	refPop = strtok(NULL,delims);
+        std::string refPopString(refPop,strlen(refPop));
+        int allPops = toupper(pops[0])=='A' and toupper(pops[1])=='L' and toupper(pops[2])=='L' and pops[3]=='\0';
+        if(includedPops.count(refPopString)>0 or allPops){
+          colsToRead[whichCol] = 1;
+        }
+        whichCol++;
+        refPop = strtok(NULL,delims);
       }
-    
-    } else{      
-      
+
+    } else{
+
       char* id = strtok(buf2,delims);
       std::string refStringID(id,strlen(id));
 
@@ -1328,102 +1338,102 @@ std::map <std::string,int> findOverlapV3(const char* lname, const char* plinkNam
       strtok(NULL,delims);
       strtok(NULL,delims);
 
-      // in order to get alleles   
+      // in order to get alleles
       char A0 = intToChar(strtok(NULL,delims)[0]);
       char A1 = intToChar(strtok(NULL,delims)[0]);
-      
+
       if( tolower(A0) < tolower(A1)){
-	refStringID=refStringID + "_" + A0 + "_" + A1;
+        refStringID=refStringID + "_" + A0 + "_" + A1;
       } else{
-	refStringID=refStringID + "_" + A1 + "_" + A0;
+        refStringID=refStringID + "_" + A1 + "_" + A0;
       }
 
       int colBeingRead = 5;
       int skipLine = 0;
-    
-      while(id!=NULL){	
-	std::string refString(id,strlen(id));
-	// check if a freq column
-	if(colBeingRead>=6){
-	  // checks if one of selected columns
-	  if(colsToRead.count(colBeingRead)>0){
-	    // checks if not double NA for instance
-	    if(not validDouble(refString)){
-	      skipLine = 1;
-	      // checks if freq below maf threshold
-	    } else  if(validDouble(refString) and (atof(id)<maf or atof(id)>1-maf)){
-	      skipLine = 1;
-	      
-	    }
-	    if(skipLine){
-	      invalidSites++;
-	    }
-	  }
-	}
-	id = strtok(NULL,delims);
-	colBeingRead++;	
+
+      while(id!=NULL){
+        std::string refString(id,strlen(id));
+        // check if a freq column
+        if(colBeingRead>=6){
+          // checks if one of selected columns
+          if(colsToRead.count(colBeingRead)>0){
+            // checks if not double NA for instance
+            if(not validDouble(refString)){
+              skipLine = 1;
+              // checks if freq below maf threshold
+            } else  if(validDouble(refString) and (atof(id)<maf or atof(id)>1-maf)){
+              skipLine = 1;
+
+            }
+            if(skipLine){
+              invalidSites++;
+            }
+          }
+        }
+        id = strtok(NULL,delims);
+        colBeingRead++;
       }
-      
+
       if(overlap.count(refStringID)>0){
-	fprintf(stderr,"Duplicate site in ref panel: %s - Go fix!\n",refStringID.c_str());     
-	exit(0);
-	// check if site is in beagle or plink file
-	// otherwise continues to next site in ref
+        fprintf(stderr,"Duplicate site in ref panel: %s - Go fix!\n",refStringID.c_str());
+        exit(0);
+        // check if site is in beagle or plink file
+        // otherwise continues to next site in ref
       } else {
 
-	if(inputSites.count(refStringID) > 0 and not skipLine){
-	  overlap[refStringID] = 1;	
-	}
+        if(inputSites.count(refStringID) > 0 and not skipLine){
+          overlap[refStringID] = 1;
+        }
       }
-      
+
     }
     refIndex++;
 
   }
-  
+
   // because ref index also counts header
   fprintf(stderr,"Ref has this many sites %i\n",refIndex-1);
   fprintf(flog,"Ref has this many sites %i\n",refIndex-1);
 
   fprintf(stderr,"This many sites in ref are either not-valid-number or below maf in any of the chosen pops %i\n",invalidSites);
   fprintf(flog,"This many sites in ref are either not-valid-number or below maf in any of the chosen pops %i\n",invalidSites);
- 
-  // starts at 1 to avoid header   
+
+  // starts at 1 to avoid header
   if(overlap.size()==0){
     fprintf(stderr,"No overlapping sites where found!!\n");
     exit(0);
   }
   gzclose(fp2);
   // cleaning
- 
+
   return(overlap);
 }
 void info(){
-  
+
   fprintf(stderr,"Arguments:\n");
   fprintf(stderr,"\t-likes Beagle likelihood filename\n");
   fprintf(stderr,"\t-plink Plink file in the binary bed format\n");
   fprintf(stderr,"\t-Nname Number of individuals in each reference populations\n");
   fprintf(stderr,"\t-fname Ancestral population frequencies\n");
   fprintf(stderr,"\t-whichPops Which populations from the ref panel to include in analysis, denotes number of populations (nPop) for admixture estimation\n \t If 'all' all pops in ref are analyzed, must be comma seperated (pop1,pop2,..)\n");
- 
+
   fprintf(stderr,"Optional:\n");
   fprintf(stderr,"\t-haploid Raise this flag if haploid organism being analyzed, first two cols of beagle file will be used - does not work for plink! Only write '-haploid'.\n");
-  fprintf(stderr,"\t-out Prefix for output files\n"); 
-  fprintf(stderr,"\t-printFreq print admixture adjusted allele frequencies of reference panel + input individual (1: yes, 0: no (default))\n"); 
+  fprintf(stderr,"\t-out Prefix for output files\n");
+  fprintf(stderr,"\t-printFreq print admixture adjusted allele frequencies of reference panel + input individual (1: yes, 0: no (default))\n");
 
   fprintf(stderr,"Setup:\n");
   fprintf(stderr,"\t-doAdjust Adjusts the frequencies in the reference populations with the input (1: yes (default), 0: no)\n");
-  fprintf(stderr,"\t-seed Seed for initial guess in EM and for bootstrap\n"); 
+  fprintf(stderr,"\t-seed Seed for initial guess in EM and for bootstrap\n");
   fprintf(stderr,"\t-method If 0 no acceleration of EM algorithm (1: yes (default), 0: no)\n");
   fprintf(stderr,"\t-maf Filters away sites with lower maf in any of analyzed pops, default 0\n");
 
-  fprintf(stderr,"Stop chriteria:\n"); 
-  fprintf(stderr,"\t-Qconv Stopping criteria based on change in Q (works best when using doAdjust) (1: yes, 0: no (default))\n"); 
-  fprintf(stderr,"\t-Qtol Tolerance value for stopping criteria based on change in Q (0.001 (default))\n"); 
-  fprintf(stderr,"\t-tol Tolerance for convergence - can only be set for the unaccelerated EM algorithm (EM: 1e-5, EMAcc: 1e-7)\n"); 
-  fprintf(stderr,"\t-maxiter Maximum number of EM iterations\n"); 
-  fprintf(stderr,"\t-boot Number of bootstrapping iterations, default 0, can at most be 10000, .qopt FIRST row BEST estimated Q, rest bootstraps!!\n"); 
+  fprintf(stderr,"Stop chriteria:\n");
+  fprintf(stderr,"\t-Qconv Stopping criteria based on change in Q (works best when using doAdjust) (1: yes, 0: no (default))\n");
+  fprintf(stderr,"\t-Qtol Tolerance value for stopping criteria based on change in Q (0.001 (default))\n");
+  fprintf(stderr,"\t-tol Tolerance for convergence - can only be set for the unaccelerated EM algorithm (EM: 1e-5, EMAcc: 1e-7)\n");
+  fprintf(stderr,"\t-maxiter Maximum number of EM iterations\n");
+  fprintf(stderr,"\t-boot Number of bootstrapping iterations, default 0, can at most be 10000, .qopt FIRST row BEST estimated Q, rest bootstraps!!\n");
   fprintf(stderr,"\t-conv Number of convergence iterations, each with random starting point, to check if has converged, default 1, can at most be 10\n");
   fprintf(stderr,"\t-randomBoot if 1 takes random Q starting points for each bootstrap, instead of converged upon estimate, default 0\n");
 
@@ -1440,8 +1450,8 @@ void info(){
 // SIG_COND=0;
 //}
 
-////////////////////////// it begins 
- int main(int argc, char **argv){ 
+////////////////////////// it begins
+ int main(int argc, char **argv){
   if(argc==1){// if no arguments, print info on program
     info();
     return 0;
@@ -1455,7 +1465,7 @@ void info(){
   //sa.sa_flags = 0;
   //sa.sa_handler = handler;
   //sigaction(SIGPIPE, &sa, 0);
-  //sigaction(SIGINT, &sa, 0);  
+  //sigaction(SIGINT, &sa, 0);
 
   //initial values
   int maxIter = 2000;
@@ -1471,8 +1481,8 @@ void info(){
   const char* plinkName = NULL;
   int nPop = 0;
   int seed = time(NULL);
-  double tol=0.00001; 
-  int nBoot = 0; 
+  double tol=0.00001;
+  int nBoot = 0;
   int nConv = 1;
   int Qconv = 0;
   double Qtol = 0.0000001;
@@ -1480,15 +1490,15 @@ void info(){
   int randomBoot = 0;
   // ploidy only works for 1 and 2 - only beagle files
   int ploidy = 2;
-  
+
   // reading arguments
   argv++;
   while(*argv){
     // GL in the shape of beagle file
-    if(strcmp(*argv,"-likes")==0 || strcmp(*argv,"-l")==0) lname=*++argv; //name / char arrays  
+    if(strcmp(*argv,"-likes")==0 || strcmp(*argv,"-l")==0) lname=*++argv; //name / char arrays
     else if(strcmp(*argv,"-plink")==0 || strcmp(*argv,"-p")==0) plinkName=*++argv;
     // ref panel
-    else if(strcmp(*argv,"-fname")==0 || strcmp(*argv,"-f")==0) fname=*++argv; 
+    else if(strcmp(*argv,"-fname")==0 || strcmp(*argv,"-f")==0) fname=*++argv;
     // nInd file
     else if(strcmp(*argv,"-Nname")==0 || strcmp(*argv,"-N")==0) Nname=*++argv;
     // prefix for output files
@@ -1498,13 +1508,13 @@ void info(){
     else if(strcmp(*argv,"-haploid")==0 || strcmp(*argv,"-h")==0 ) ploidy=1;
     else if(strcmp(*argv,"-seed")==0||strcmp(*argv,"-s")==0) seed=atoi(*++argv); //int - atoi - char array to integer
     // flag for printing adjusted freqs
-    else if(strcmp(*argv,"-printFreq")==0) printFreq=atoi(*++argv); 
+    else if(strcmp(*argv,"-printFreq")==0) printFreq=atoi(*++argv);
     // flag for doing Adjustment
     else if(strcmp(*argv,"-doAdjust")==0) doAdjust=atoi(*++argv);
     // flag for doing accelerated EM
-    else if(strcmp(*argv,"-method")==0 || strcmp(*argv,"-m")==0) method=atoi(*++argv); 
+    else if(strcmp(*argv,"-method")==0 || strcmp(*argv,"-m")==0) method=atoi(*++argv);
     // different stop criteria - whether based on diff in Q values
-    else if(strcmp(*argv,"-Qconv")==0) Qconv=atoi(*++argv); 
+    else if(strcmp(*argv,"-Qconv")==0) Qconv=atoi(*++argv);
     // tolerance for Q stopping criteria
     else if(strcmp(*argv,"-Qtol")==0) Qtol=atof(*++argv);
     // tolerance for likelihood based stopping criteria
@@ -1516,7 +1526,7 @@ void info(){
     // number of max total iterations
     else if(strcmp(*argv,"-maxiter")==0 || strcmp(*argv,"-i")==0) maxIter=atoi(*++argv);
     else if(strcmp(*argv,"-maf")==0) maf=atof(*++argv);
-    else if(strcmp(*argv,"-randomBoot")==0) randomBoot=atoi(*++argv); 
+    else if(strcmp(*argv,"-randomBoot")==0) randomBoot=atoi(*++argv);
     else{
       fprintf(stderr,"Unknown arg:%s\n",*argv);
       info();
@@ -1525,7 +1535,7 @@ void info(){
     ++argv;
   }
 
-  //check that non optional options have been used. 
+  //check that non optional options have been used.
   if(lname==NULL and plinkName==NULL){
     fprintf(stderr,"Please supply a beagle or plink input file: -likes or -plink\n");
     fprintf(stderr,"\n");
@@ -1546,13 +1556,13 @@ void info(){
     fprintf(stderr,"\n");
     info();
     fprintf(stderr,"\n");
-  } 
+  }
 
   if(outfiles==NULL and lname!=NULL){
     fprintf(stderr,"Will use beagle name as prefix for output\n");
     outfiles=lname;
   }
-  
+
   if(outfiles==NULL and plinkName!=NULL){
     fprintf(stderr,"Will use plink name as prefix for output\n");
     outfiles=plinkName;
@@ -1564,11 +1574,11 @@ void info(){
     info();
     fprintf(stderr,"\n");
   }
-  
-  // max 10000 bootstraps 10 conv runs and 
+
+  // max 10000 bootstraps 10 conv runs and
   nBoot = std::min(std::max(nBoot,0),10000);
   nConv = std::min(std::max(nConv,1),10);
-  
+
   //out put files
   FILE *flog=openFile(outfiles,".log");
 
@@ -1589,13 +1599,13 @@ void info(){
   fprintf(stderr,"Convergence: -maxIter %d -tol %.8f\n",maxIter,tol);
   fprintf(stderr,"The following number of bootstraps have been chosen: %i\n",nBoot);
   if(Qconv>0){
-    fprintf(stderr,"Convergence via difference in Q values chosen, threshold of: %f\n",Qtol);    
+    fprintf(stderr,"Convergence via difference in Q values chosen, threshold of: %f\n",Qtol);
   }
 
   fprintf(flog,"Input: -likes %s -plink %s -Nname %s -fname %s -out %s -whichPops %s\n",lname,plinkName,Nname,fname,outfiles,pops);
   fprintf(flog,"Setup: -seed %d -method %d\n",seed,method);
   fprintf(flog,"Ploidy of %i has been chosen\n\n",ploidy);
-  
+
   if(method==0){
     fprintf(flog,"The unaccelerated EM has been chosen\n");
   } else{
@@ -1609,7 +1619,7 @@ void info(){
   fprintf(flog,"Convergence: -maxIter %d -tol %.8f\n",maxIter,tol);
   fprintf(flog,"The following number of bootstraps have been chosen: %i\n",nBoot);
   if(Qconv>0){
-    fprintf(flog,"Convergence via difference in Q values chosen, threshold of: %f\n",Qtol);    
+    fprintf(flog,"Convergence via difference in Q values chosen, threshold of: %f\n",Qtol);
   }
 
   // to get the populations from ref to be analyzed
@@ -1623,19 +1633,19 @@ void info(){
       std::string popString(temp,strlen(temp));
       // check that population does not appear twice here
       if(includedPops.count(popString)>0){
-	fprintf(stderr,"Same population selected twice with -whichPops, only each population once!\n");
-	fprintf(flog,"Same population selected twice with -whichPops, only each population once!\n");
-	fprintf(stderr,"\n");
-	info();
-	fprintf(stderr,"\n");
+        fprintf(stderr,"Same population selected twice with -whichPops, only each population once!\n");
+        fprintf(flog,"Same population selected twice with -whichPops, only each population once!\n");
+        fprintf(stderr,"\n");
+        info();
+        fprintf(stderr,"\n");
       }
       includedPops[popString] = 1;
       temp = strtok(NULL,",");
-    }   
+    }
   }
 
   // to find out which version of C++
-  //fprintf(stderr,"V: [%ld] ", __cplusplus);  
+  //fprintf(stderr,"V: [%ld] ", __cplusplus);
   bgl d;
   bgl dOrg;
   std::map <std::string,int> overlap;
@@ -1655,18 +1665,18 @@ void info(){
     }
     overlap = findOverlapV3(NULL, plinkName, fname,flog,includedPops,pops,maf);
     d=readPlinkToBeagle(plinkName, overlap);
-    dOrg=readPlinkToBeagle(plinkName, overlap);  
+    dOrg=readPlinkToBeagle(plinkName, overlap);
   }
 
   if(maf>0){
     fprintf(stderr,"Overlap: of %zu sites between input and ref, after maf filter of %f\n",overlap.size(),maf);
-    fprintf(flog,"Overlap: of %zu sites between input and ref, after maf filter of %f\n",overlap.size(),maf);  
+    fprintf(flog,"Overlap: of %zu sites between input and ref, after maf filter of %f\n",overlap.size(),maf);
   } else{
     fprintf(stderr,"Overlap: of %zu sites between input and ref\n",overlap.size());
-    fprintf(flog,"Overlap: of %zu sites between input and ref\n",overlap.size());  
+    fprintf(flog,"Overlap: of %zu sites between input and ref\n",overlap.size());
   }
-  
-  refPanel ref;  
+
+  refPanel ref;
   // if nPop == 0 then reads in all of them refs
   ref = readRefPanel(fname,d,includedPops,nPop,overlap);
   if(toupper(pops[0])=='A' and toupper(pops[1])=='L' and toupper(pops[2])=='L' and pops[3]=='\0'){
@@ -1684,23 +1694,66 @@ void info(){
     fprintf(stderr,"nPop has to be at least 2, nPop=%i\n",nPop);
     fprintf(flog,"nPop has to be at least 2, nPop=%i\n",nPop);
     info();
-    
+
   }fprintf(stderr,"\n");
-  
+
   fprintf(stderr,"\n");
   fprintf(flog,"\n");
   fprintf(stderr,"nPop=%i\n",nPop);
   fprintf(flog,"nPop=%i\n",nPop);
   fprintf(stderr,"\n");
   fprintf(flog,"\n");
+
+  bgl allIndividuals = d;
+  bgl allIndividualsOrg = dOrg;
+  std::map<std::string,int> usedSampleNames;
+  FILE *fpQ=openFile(outfiles,".qopt");
+  fprintf(fpQ,"id");
+  for(int population=0;population<nPop;population++){
+    fprintf(fpQ,"\t%s",ref.populations[population].c_str());
+  }
+  fprintf(fpQ,"\n");
+  for(int individual=0; individual<allIndividuals.nInd; individual++){
+    std::string sampleIdentifier = allIndividuals.sampleNames[individual];
+    std::string sampleName = sampleIdentifier;
+    for(size_t c=0;c<sampleName.size();c++){
+      if(!isalnum((unsigned char)sampleName[c]) && sampleName[c]!='-' && sampleName[c]!='_') sampleName[c]='_';
+    }
+    if(sampleName.empty()) sampleName = "individual_" + std::to_string(individual+1);
+    usedSampleNames[sampleName]++;
+    if(usedSampleNames[sampleName]>1){
+      sampleName += "_" + std::to_string(usedSampleNames[sampleName]);
+    }
+    std::string individualOut = outfiles;
+    if(allIndividuals.nInd>1) individualOut += "." + sampleName;
+
+    d = allIndividuals;
+    dOrg = allIndividualsOrg;
+    d.nInd = dOrg.nInd = 1;
+    d.sampleNames.assign(1, sampleName);
+    dOrg.sampleNames.assign(1, sampleName);
+    d.genos.assign(d.nSites*3,0);
+    dOrg.genos.assign(d.nSites*3,0);
+    for(int site=0;site<d.nSites;site++){
+      for(int genotype=0;genotype<3;genotype++){
+        int source = (site*allIndividuals.nInd+individual)*3+genotype;
+        d.genos[site*3+genotype] = allIndividuals.genos[source];
+        dOrg.genos[site*3+genotype] = allIndividualsOrg.genos[source];
+      }
+    }
+    fprintf(stderr,"Analyzing individual %d/%d: %s\n",individual+1,allIndividuals.nInd,sampleName.c_str());
+    fprintf(flog,"Analyzing individual %d/%d: %s\n",individual+1,allIndividuals.nInd,sampleName.c_str());
+
   // min tolerance for F and Q - so they are not 0
   errTolStart = errTolMin;
   errTol = errTolMin;
-    
+
   clock_t t = clock();
   time_t t2 = time(NULL);
 
   // seed for bootstrapping and random starting points
+  // Reset for each sample so a multi-sample run is reproducible and matches
+  // running that sample alone with the same -seed value.
   std::srand(seed);
 
   std::vector< std::vector<double> > F(d.nSites, std::vector<double>(nPop));
@@ -1718,7 +1771,7 @@ void info(){
       F[i][k] = f;
       F_org[i][k] = f;
       F_orgOrg[i][k] = f;
-    }   
+    }
   }
 
   // because has to have conv values for converge runs, and then nBoot bootstrapped values
@@ -1734,21 +1787,21 @@ void info(){
       sum[j]+=Q[j][k];
     }
   }
-  
+
   // nBoot + conv rows
   for(int j=0;j<nBoot+nConv;j++){
     for(int k=0;k<nPop;k++) {
       // to make sure that proportions sum to 1
-      Q[j][k] = Q[j][k]/sum[j]; 
+      Q[j][k] = Q[j][k]/sum[j];
       Q_new[j][k] = Q[j][k];
     }
   }
-  
+
   std::vector<double> N;
   N.assign(nPop,0);
   // reading nInd, where colsToKeep from ref to read in the same columns as in ref
   readDouble1d(N,nPop,Nname,ref.popsToKeep);
-  fprintf(flog,"Opening nInd file: %s with nPop=%d\n",fname,nPop); 
+  fprintf(flog,"Opening nInd file: %s with nPop=%d\n",fname,nPop);
   for(int i=0;i<nPop;i++){
     fprintf(flog,"Chosen pop %s\n",ref.populations[i].c_str());
     fprintf(flog,"N = %f\n",N[i]);
@@ -1760,160 +1813,160 @@ void info(){
 
   std::vector<double> bestLike; bestLike.assign(nConv,0);
   int highestLike = 0;
-  // initial likelihood   
+  // initial likelihood
   double lold = likelihood(Q[0], F_org, d.nSites, nPop, d.genos, ploidy);
   fprintf(stderr,"iter[start] like is=%f\n",lold);
   int nit = 0;
   double likeLast = lold;
   double lastQthres = 0;
-  
+
   //////////////////////////////////////// em ///////////////////////////////////
-  
+
   //below is the main looping through the iterations.
   // we have 4 possible ways, unAdjusted/Adjusted basic EM/Accelerated EM
   // first conv runs for converge with new Q starting point
   // then nBoot new runs for bootstrapping with best Q starting point, with random sites
   for(int b=0;SIG_COND and b<(nBoot+nConv);b++) {
     // resets nit for each conv or bootstrap run
-    nit=0;  
+    nit=0;
     if(b>(nConv-1)){
       // do bootstrapping when conv runs done
-      bootstrap(dOrg.genos,d.genos,F_orgOrg,F_org,F,nPop,d.nSites,ploidy); 
+      bootstrap(dOrg.genos,d.genos,F_orgOrg,F_org,F,nPop,d.nSites,ploidy);
       fprintf(stderr,"At this bootstrapping: %i out of: %i\n",b-(nConv-1),nBoot);
       fprintf(flog,"At this bootstrapping: %i out of: %i\n",b-(nConv-1),nBoot);
     }
-    for(nit=1;SIG_COND and nit<maxIter;nit++) {	
+    for(nit=1;SIG_COND and nit<maxIter;nit++) {
       if(doAdjust==0){
-	if(method==0){
-	  // unadjusted, unaccelerated EM
-	  emUnadjusted(Q[b], F, d.nSites, nPop,d.genos,Q_new[b], ploidy);
-	} else{
-	  // unadjusted, accelerated EM	  
-	  if(0==emAccelUnadjustedV2(d.genos, N, nPop, F, Q[b], Q_new[b], nit, b, Qconv, Qtol, tol, d.nSites, ploidy)){
-	    if(b<nConv){
-	      // stores all likelihoods so max can be found
-	      bestLike[b] = likelihood(Q[b], F_org, d.nSites, nPop,d.genos, ploidy);
-	      fprintf(stderr,"like after %f\n",bestLike[b]);
-	    }
-	    break;
-	  }
-	}
-      } else{   
-	if(method==0){
-	  // adjusted, unaccelerated EM
-	  em(Q[b], F, d.nSites, N, nPop,d.genos,F_new,Q_new[b],F_org, ploidy);
-	} else{
-	  // adjusted, accelerated EM
-	  if(0==emAccelV3(d.genos, N, nPop, F, Q[b], F_new, Q_new[b],F_org, nit, b, Qconv, Qtol, tol, d.nSites, ploidy)){
-	    if(b<nConv){
-	      double tmpLike =  likelihood(Q_new[b], F_new, d.nSites, nPop,d.genos,ploidy);
-	      // stores F with max likelihood, so can be written later
-	      if(b==0){
-		for(int i=0;i<d.nSites;i++){
-		  for(int j=0;j<nPop;j++){
-		    F_1stRun[i][j] = F_new[i][j];
-		  }
-		}
-	      } else{
-		if(tmpLike > bestLike[highestLike]){
-		  highestLike = b;
-		  for(int i=0;i<d.nSites;i++){
-		    for(int j=0;j<nPop;j++){
-		      F_1stRun[i][j] = F_new[i][j];
-		    }
-		  }
-		}
-	      }
-	      // stores all likelihoods so max can be found
-	      bestLike[b] = tmpLike;
-	      fprintf(stderr,"like after %f\n", bestLike[b]);
-	    }
-	    break;
-	  }
-	  
-	}
-	// swaps adresses of F and F_new, as F_new has the results from the iteration just paseed
-	F.swap(F_new);
+        if(method==0){
+          // unadjusted, unaccelerated EM
+          emUnadjusted(Q[b], F, d.nSites, nPop,d.genos,Q_new[b], ploidy);
+        } else{
+          // unadjusted, accelerated EM
+          if(0==emAccelUnadjustedV2(d.genos, N, nPop, F, Q[b], Q_new[b], nit, b, Qconv, Qtol, tol, d.nSites, ploidy)){
+            if(b<nConv){
+              // stores all likelihoods so max can be found
+              bestLike[b] = likelihood(Q[b], F_org, d.nSites, nPop,d.genos, ploidy);
+              fprintf(stderr,"like after %f\n",bestLike[b]);
+            }
+            break;
+          }
+        }
+      } else{
+        if(method==0){
+          // adjusted, unaccelerated EM
+          em(Q[b], F, d.nSites, N, nPop,d.genos,F_new,Q_new[b],F_org, ploidy);
+        } else{
+          // adjusted, accelerated EM
+          if(0==emAccelV3(d.genos, N, nPop, F, Q[b], F_new, Q_new[b],F_org, nit, b, Qconv, Qtol, tol, d.nSites, ploidy)){
+            if(b<nConv){
+              double tmpLike =  likelihood(Q_new[b], F_new, d.nSites, nPop,d.genos,ploidy);
+              // stores F with max likelihood, so can be written later
+              if(b==0){
+                for(int i=0;i<d.nSites;i++){
+                  for(int j=0;j<nPop;j++){
+                    F_1stRun[i][j] = F_new[i][j];
+                  }
+                }
+              } else{
+                if(tmpLike > bestLike[highestLike]){
+                  highestLike = b;
+                  for(int i=0;i<d.nSites;i++){
+                    for(int j=0;j<nPop;j++){
+                      F_1stRun[i][j] = F_new[i][j];
+                    }
+                  }
+                }
+              }
+              // stores all likelihoods so max can be found
+              bestLike[b] = tmpLike;
+              fprintf(stderr,"like after %f\n", bestLike[b]);
+            }
+            break;
+          }
+
+        }
+        // swaps adresses of F and F_new, as F_new has the results from the iteration just paseed
+        F.swap(F_new);
       }
       // swaps adresses of Q and Q_new, as F_new has the results from the iteration just paseed
       Q.swap(Q_new);
-      
+
       //stopping criteria, for EM unaccelerated
       if((nit%10)==0 and method == 0){
-	double lik = likelihood(Q[b], F, d.nSites, nPop,d.genos,ploidy);	
-	if(likeLast!=likeLast and lik!=lik){
-	  fprintf(stderr,"likelihood is nan, probably because dividing by 0, go fix ref panel or input!");
-	  exit(0);	  
-	}
-	if(b==0){
-	    fprintf(stderr,"iter[%d] last like is=%f thres=%f\t",nit,likeLast,calcThres(Q[b],Q_new[b],nPop));
-	    fprintf(stderr,"iter[%d] like is=%f thres=%f\t",nit,lik,calcThres(Q[b],Q_new[b],nPop));
-	    fprintf(stderr,"iter[%d] diff in likelihood is=%f\t",nit,std::abs(lik-likeLast));
-	    fprintf(stderr,"iter[%d] ",nit);
-	    for(int i=0;i<nPop;i++){	      
-	      fprintf(stderr,"Q is=%f, ",Q[b][i]);
-	      
-	    }
-	    fprintf(stderr,"\n");      
-	}
-	// if convergence based on Q
-	if(calcThres(Q[b],Q_new[b],nPop) < Qtol and Qconv>0) {
-	  if(b==0){
-	    fprintf(stderr,"Convergence achived because diffence in Q values less than %f\n",Qtol);
-	  }
-	  if(b<nConv){
-	    bestLike[b] = lik;
-	  }
-	  break;
-	  // if convergence based on likelihood
-	} else if(std::abs(lik-likeLast) < tol and Qconv==0) {
-	  if(b==0){
-	      fprintf(stderr,"Convergence achived becuase log likelihooditer difference is less than %.8f\n",tol);
-	  }
-	  if(lik-likeLast<0){
-	    if(b==0){
-	      fprintf(stderr,"Convergence achived because log likelihood difference was NEGATIVE\n");
-	    }
-	  }
-	  // storing likelihoods from conv runs
-	  if(b<nConv){
-	    bestLike[b] = lik;
-	  }
-	  break;
-	  }
-	likeLast = lik;
+        double lik = likelihood(Q[b], F, d.nSites, nPop,d.genos,ploidy);
+        if(likeLast!=likeLast and lik!=lik){
+          fprintf(stderr,"likelihood is nan, probably because dividing by 0, go fix ref panel or input!");
+          exit(0);
+        }
+        if(b==0){
+            fprintf(stderr,"iter[%d] last like is=%f thres=%f\t",nit,likeLast,calcThres(Q[b],Q_new[b],nPop));
+            fprintf(stderr,"iter[%d] like is=%f thres=%f\t",nit,lik,calcThres(Q[b],Q_new[b],nPop));
+            fprintf(stderr,"iter[%d] diff in likelihood is=%f\t",nit,std::abs(lik-likeLast));
+            fprintf(stderr,"iter[%d] ",nit);
+            for(int i=0;i<nPop;i++){
+              fprintf(stderr,"Q is=%f, ",Q[b][i]);
+
+            }
+            fprintf(stderr,"\n");
+        }
+        // if convergence based on Q
+        if(calcThres(Q[b],Q_new[b],nPop) < Qtol and Qconv>0) {
+          if(b==0){
+            fprintf(stderr,"Convergence achived because diffence in Q values less than %f\n",Qtol);
+          }
+          if(b<nConv){
+            bestLike[b] = lik;
+          }
+          break;
+          // if convergence based on likelihood
+        } else if(std::abs(lik-likeLast) < tol and Qconv==0) {
+          if(b==0){
+              fprintf(stderr,"Convergence achived becuase log likelihooditer difference is less than %.8f\n",tol);
+          }
+          if(lik-likeLast<0){
+            if(b==0){
+              fprintf(stderr,"Convergence achived because log likelihood difference was NEGATIVE\n");
+            }
+          }
+          // storing likelihoods from conv runs
+          if(b<nConv){
+            bestLike[b] = lik;
+          }
+          break;
+          }
+        likeLast = lik;
       }
       // if no more iterations store likelihood no matter what
       if((nit+1)==maxIter and b<nConv){
-	bestLike[b] = likeLast;
+        bestLike[b] = likeLast;
       }
-    }     
+    }
     fprintf(stderr,"CONVERGENCE!\n");
     if(b<nConv){
       fprintf(stderr,"This many iterations %i for run %i\n",nit,b);
       fprintf(flog,"This many iterations %i for run %i\n",nit,b);
       fprintf(stderr,"\n");
-      fprintf(flog,"\n");	
+      fprintf(flog,"\n");
     }
     for(int i=0;i<d.nSites;i++){
       for(int k=0;k<nPop;k++){
-	// original ref panel freqs
-	F[i][k] = F_orgOrg[i][k];
-	F_new[i][k] = F_orgOrg[i][k];
+        // original ref panel freqs
+        F[i][k] = F_orgOrg[i][k];
+        F_new[i][k] = F_orgOrg[i][k];
       }
-    }    
+    }
     // to find the Q with lowest likelihood, after 10 first runs
     if(b==(nConv-1) and randomBoot==0){
       for(int j=nConv;j<(nBoot+nConv);j++){
-	for(int k=0;k<nPop;k++){	
-	  // make best estimated Q starting guess for bootstrap
-	  Q[j][k] = Q[highestLike][k];
-	  Q_new[j][k] = Q[highestLike][k];
-	}
+        for(int k=0;k<nPop;k++){
+          // make best estimated Q starting guess for bootstrap
+          Q[j][k] = Q[highestLike][k];
+          Q_new[j][k] = Q[highestLike][k];
+        }
       }
     }
   }
-  
+
   for(int i=0;i<nConv;i++){
     fprintf(stderr,"best like %f after %i!\n",bestLike[i],i);
     fprintf(flog,"best like %f after %i!\n",bestLike[i],i);
@@ -1923,11 +1976,11 @@ void info(){
     }
     fprintf(stderr," after %i!\n",i);
     fprintf(flog," after %i!\n",i);
-  } 
+  }
 
   fprintf(stderr,"\n");
   fprintf(flog,"\n");
-  
+
   fprintf(stderr,"Estimated  Q = ");
   fprintf(flog,"Estimated  Q = ");
   for(int i=0;i<nPop;i++){
@@ -1935,42 +1988,41 @@ void info(){
     fprintf(stderr,"%f ",Q[highestLike][i]);
   }
   fprintf(flog,"\n");
-  
+
   fprintf(stderr,"best like %f after %i runs!\n",bestLike[highestLike],highestLike);
   fprintf(flog,"best like %f after %i runs!\n",bestLike[highestLike],highestLike);
-  
-  
-  /////////////////////////////////////////////////////////// done - make output and clean /////////////////////////////////  
-  // Print F and Q in files
-  
 
-  FILE *fpQ=openFile(outfiles,".qopt");
-  // nBoot + 1, because first value is estimated Q
-  printDouble(Q,nBoot+nConv,nPop,highestLike,nConv,ref.populations,fpQ);
-  fclose(fpQ);
-  fprintf(stderr,"FIRST row of .qopt file is BEST estimated Q, rest are nBoot bootstrapping Qs\n");
-  fprintf(flog,"FIRST row of .qopt file is BEST estimated Q, rest are nBoot bootstrapping Qs\n");
 
-  
+  /////////////////////////////////////////////////////////// done - make output and clean /////////////////////////////////
+  // Append this individual's best estimate to the shared qopt table.
+  fprintf(fpQ,"%s",sampleIdentifier.c_str());
+  for(int population=0;population<nPop;population++){
+    fprintf(fpQ,"\t%.4f",Q[highestLike][population]);
+  }
+  fprintf(fpQ,"\n");
+
+
   // only if certain flag, print adjusted freqs
   if(printFreq>0){
-    gzFile fpGz=openFileGz(outfiles,".fopt.gz");
+    gzFile fpGz=openFileGz(individualOut.c_str(),".fopt.gz");
     printDoubleGz(F_1stRun,ref.refSites,nPop,ref.id,ref.populations,fpGz);
     gzclose(fpGz);
   }
-   
+
   /*
   for(int i=0;1&&i<dumpedFiles.size();i++){
     free(dumpedFiles[i]);
     }*/
   fprintf(stderr, "\t[ALL done] cpu-time used =  %.2f sec\n", (float)(clock() - t) / CLOCKS_PER_SEC);
-  fprintf(stderr, "\t[ALL done] walltime used =  %.2f sec\n", (float)(time(NULL) - t2));  
+  fprintf(stderr, "\t[ALL done] walltime used =  %.2f sec\n", (float)(time(NULL) - t2));
 
   // print to log file
   fprintf(flog, "\t[ALL done] cpu-time used =  %.2f sec\n", (float)(clock() - t) / CLOCKS_PER_SEC);
-  fprintf(flog, "\t[ALL done] walltime used =  %.2f sec\n", (float)(time(NULL) - t2));  
-  fclose(flog); 
+  fprintf(flog, "\t[ALL done] walltime used =  %.2f sec\n", (float)(time(NULL) - t2));
+  }
+  fclose(fpQ);
+  fclose(flog);
   return 0;
-    
+
  }
 
