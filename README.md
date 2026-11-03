@@ -2,6 +2,15 @@
 
 Program for infering admixture proportions and doing PCA with a single NGS sample. Inferences based on reference panel.
 
+The ancestry estimator accepts one or more individuals in either a Beagle or
+binary PLINK input. Multi-individual inputs are analyzed one individual at a
+time against the same reference panel. A run with `-out result` creates one
+`result.qopt` table with an `id` column and one best-estimate row per
+individual. PLINK identifiers come from the IID column of the `.fam` file;
+Beagle identifiers are the 1-based individual column numbers. When adjusted
+frequencies are requested, the per-individual files remain named
+`result.<sample>.fopt.gz` for multi-individual inputs.
+
 For how to use program go to:
 http://www.popgen.dk/software/index.php/FastNGSadmix
 
