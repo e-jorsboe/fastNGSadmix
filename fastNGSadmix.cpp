@@ -39,6 +39,7 @@
 #include <sys/stat.h>
 #include <map>
 #include <iostream>
+#include <utility>
 // stringpocalypse - still the best!
 #include <string>
 #include "readplinkV3.h"
@@ -391,7 +392,9 @@ bgl readBeagle(const char* fname, const std::map <std::string,int> &overlap) {
       for(int i=0;i<ret.nInd*3;i++){
         if(i%3==0) tmpS=0.0;
         double gl = atof(strtok(NULL,delims));
-        ret.genos.at(refIndex*ret.nInd*3+i)=gl;
+        int ind = i/3;
+        int genotype = i%3;
+        ret.genos.at((ind*ret.nSites+refIndex)*3+genotype)=gl;
         if(gl<0){
           fprintf(stderr,"Likelihoods must be positive\n");
           fprintf(stderr,"site %d ind %d geno %d has value %f\n",bglIndex,i/3,i%3,gl);
@@ -448,7 +451,7 @@ bgl readPlinkToBeagle(const char* plinkName, const std::map <std::string,int> &o
     }
 
     for(int ind=0;ind<b.nInd;ind++){
-      int offset = (beagleIndex*b.nInd+ind)*3;
+      int offset = (ind*b.nSites+beagleIndex)*3;
       if(pl.d[ind][i]==0){
         b.genos.at(offset)=0.0;
         b.genos.at(offset+1)=0.0;
@@ -1653,7 +1656,6 @@ void info(){
     // finds overlapping sites, then reads beagle
     overlap = findOverlapV3(lname, NULL, fname,flog,includedPops,pops,maf);
     d=readBeagle(lname,overlap);
-    dOrg=readBeagle(lname,overlap);
   } else if(plinkName!=NULL){
     // finds overlapping sites, then reads plink file
     if(ploidy==1){
@@ -1665,7 +1667,6 @@ void info(){
     }
     overlap = findOverlapV3(NULL, plinkName, fname,flog,includedPops,pops,maf);
     d=readPlinkToBeagle(plinkName, overlap);
-    dOrg=readPlinkToBeagle(plinkName, overlap);
   }
 
   if(maf>0){
@@ -1704,8 +1705,30 @@ void info(){
   fprintf(stderr,"\n");
   fprintf(flog,"\n");
 
-  bgl allIndividuals = d;
-  bgl allIndividualsOrg = dOrg;
+  // Keep the multi-individual input in one place. Swapping avoids copying the
+  // potentially very large genotype vector before the individual analyses.
+  bgl allIndividuals;
+  std::swap(allIndividuals,d);
+
+  // N and the reference frequencies do not change between individuals.
+  std::vector<double> N;
+  N.assign(nPop,0);
+  readDouble1d(N,nPop,Nname,ref.popsToKeep);
+  fprintf(flog,"Opening nInd file: %s with nPop=%d\n",fname,nPop);
+  for(int i=0;i<nPop;i++){
+    fprintf(flog,"Chosen pop %s\n",ref.populations[i].c_str());
+    fprintf(flog,"N = %f\n",N[i]);
+    fprintf(stderr,"N = %f\n",N[i]);
+  }
+  fprintf(stderr,"\n");
+  fprintf(flog,"\n");
+
+  std::vector< std::vector<double> > referenceF(allIndividuals.nSites, std::vector<double>(nPop));
+  for(int i=0;i<allIndividuals.nSites;i++){
+    for(int k=0;k<nPop;k++){
+      referenceF[i][k] = getFreq(ref.freqs,ref.pops,i,k);
+    }
+  }
   std::map<std::string,int> usedSampleNames;
   FILE *fpQ=openFile(outfiles,".qopt");
   fprintf(fpQ,"id");
@@ -1727,19 +1750,15 @@ void info(){
     std::string individualOut = outfiles;
     if(allIndividuals.nInd>1) individualOut += "." + sampleName;
 
-    d = allIndividuals;
-    dOrg = allIndividualsOrg;
+    d.nSites = dOrg.nSites = allIndividuals.nSites;
     d.nInd = dOrg.nInd = 1;
     d.sampleNames.assign(1, sampleName);
     dOrg.sampleNames.assign(1, sampleName);
-    d.genos.assign(d.nSites*3,0);
-    dOrg.genos.assign(d.nSites*3,0);
-    for(int site=0;site<d.nSites;site++){
-      for(int genotype=0;genotype<3;genotype++){
-        int source = (site*allIndividuals.nInd+individual)*3+genotype;
-        d.genos[site*3+genotype] = allIndividuals.genos[source];
-        dOrg.genos[site*3+genotype] = allIndividualsOrg.genos[source];
-      }
+    int firstGeno = individual*d.nSites*3;
+    d.genos.assign(allIndividuals.genos.begin()+firstGeno,
+                   allIndividuals.genos.begin()+firstGeno+d.nSites*3);
+    if(nBoot>0){
+      dOrg.genos = d.genos;
     }
     fprintf(stderr,"Analyzing individual %d/%d: %s\n",individual+1,allIndividuals.nInd,sampleName.c_str());
     fprintf(flog,"Analyzing individual %d/%d: %s\n",individual+1,allIndividuals.nInd,sampleName.c_str());
@@ -1756,24 +1775,17 @@ void info(){
   // running that sample alone with the same -seed value.
   std::srand(seed);
 
-  std::vector< std::vector<double> > F(d.nSites, std::vector<double>(nPop));
+  std::vector< std::vector<double> > F = referenceF;
   std::vector< std::vector<double> > F_new(d.nSites, std::vector<double>(nPop));
   // F_org is for storing initial freqs from ref panel
-  std::vector< std::vector<double> > F_org(d.nSites, std::vector<double>(nPop));
+  std::vector< std::vector<double> > F_org = referenceF;
   // for sampling from when doing bootstrap
-  std::vector< std::vector<double> > F_orgOrg(d.nSites, std::vector<double>(nPop));
+  std::vector< std::vector<double> > F_orgOrg = referenceF;
   // for when having to write adjusted freqs
-  std::vector< std::vector<double> > F_1stRun(d.nSites, std::vector<double>(nPop));
-  // gets freq values from ref struct, where read into
-  for(int i=0;i<d.nSites;i++){
-    for(int k=0;k<nPop;k++){
-      double f = getFreq(ref.freqs,ref.pops,i,k);
-      F[i][k] = f;
-      F_org[i][k] = f;
-      F_orgOrg[i][k] = f;
-    }
+  std::vector< std::vector<double> > F_1stRun;
+  if(printFreq>0){
+    F_1stRun.assign(d.nSites,std::vector<double>(nPop));
   }
-
   // because has to have conv values for converge runs, and then nBoot bootstrapped values
   std::vector< std::vector<double> > Q(nBoot+nConv, std::vector<double>(nPop));
   std::vector< std::vector<double> > Q_new(nBoot+nConv, std::vector<double>(nPop));
@@ -1796,20 +1808,6 @@ void info(){
       Q_new[j][k] = Q[j][k];
     }
   }
-
-  std::vector<double> N;
-  N.assign(nPop,0);
-  // reading nInd, where colsToKeep from ref to read in the same columns as in ref
-  readDouble1d(N,nPop,Nname,ref.popsToKeep);
-  fprintf(flog,"Opening nInd file: %s with nPop=%d\n",fname,nPop);
-  for(int i=0;i<nPop;i++){
-    fprintf(flog,"Chosen pop %s\n",ref.populations[i].c_str());
-    fprintf(flog,"N = %f\n",N[i]);
-    fprintf(stderr,"N = %f\n",N[i]);
-    // being printed in function to stderr
-  }
-  fprintf(stderr,"\n");
-  fprintf(flog,"\n");
 
   std::vector<double> bestLike; bestLike.assign(nConv,0);
   int highestLike = 0;
@@ -1862,18 +1860,14 @@ void info(){
               double tmpLike =  likelihood(Q_new[b], F_new, d.nSites, nPop,d.genos,ploidy);
               // stores F with max likelihood, so can be written later
               if(b==0){
-                for(int i=0;i<d.nSites;i++){
-                  for(int j=0;j<nPop;j++){
-                    F_1stRun[i][j] = F_new[i][j];
-                  }
+                if(printFreq>0){
+                  F_1stRun = F_new;
                 }
               } else{
                 if(tmpLike > bestLike[highestLike]){
                   highestLike = b;
-                  for(int i=0;i<d.nSites;i++){
-                    for(int j=0;j<nPop;j++){
-                      F_1stRun[i][j] = F_new[i][j];
-                    }
+                  if(printFreq>0){
+                    F_1stRun = F_new;
                   }
                 }
               }
@@ -2025,4 +2019,3 @@ void info(){
   return 0;
 
  }
-
